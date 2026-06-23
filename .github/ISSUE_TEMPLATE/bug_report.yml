@@ -1,0 +1,39 @@
+name: Bug Report
+description: Reportar um bug
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Obrigado por reportar o bug!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição
+      description: O que aconteceu?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Fui para...
+        2. Cliquei em...
+        3. Vi o erro...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      render: shell
