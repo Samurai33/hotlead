@@ -1,0 +1,56 @@
+# ─── Secrets (NEVER commit) ───────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# ─── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ─── Node / Next.js ───────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ─── Docker ───────────────────────────────────────────
+docker-data/
+
+# ─── OS ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ─── IDE ──────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.iml
+
+# ─── Instagram sessions (sensitive) ───────────────────
+*.session.json
+sessions/
+
+# ─── Logs ─────────────────────────────────────────────
+*.log
+logs/
