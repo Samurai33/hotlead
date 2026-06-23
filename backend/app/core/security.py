@@ -1,14 +1,14 @@
+import secrets
 from fastapi import Security, HTTPException, status
 from fastapi.security import APIKeyHeader
 from app.core.config import get_settings
-import secrets
 
-API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+_API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def require_api_key(api_key: str | None = Security(API_KEY_HEADER)) -> str:
+async def require_api_key(api_key: str | None = Security(_API_KEY_HEADER)) -> str:
     """
-    Dependency that validates the X-API-Key header.
+    Validates X-API-Key header on every protected route.
     Uses constant-time comparison to prevent timing attacks.
     """
     settings = get_settings()
@@ -17,10 +17,11 @@ async def require_api_key(api_key: str | None = Security(API_KEY_HEADER)) -> str
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="X-API-Key header is required",
+            headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    # Constant-time comparison prevents timing attacks
-    if not secrets.compare_digest(api_key, settings.api_key):
+    # secrets.compare_digest prevents timing attacks
+    if not secrets.compare_digest(api_key.encode(), settings.api_key.encode()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid API key",

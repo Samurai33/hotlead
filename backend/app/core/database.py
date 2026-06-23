@@ -6,19 +6,16 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import get_settings
 
+settings = get_settings()
 
-def _get_engine():
-    settings = get_settings()
-    return create_async_engine(
-        settings.database_url,
-        echo=not settings.is_production,
-        pool_size=10,
-        max_overflow=20,
-        pool_pre_ping=True,  # reconnect on stale connections
-    )
-
-
-engine = _get_engine()
+engine = create_async_engine(
+    settings.database_url,
+    echo=(settings.environment == "development"),
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,  # handle stale connections
+    pool_recycle=300,    # recycle connections every 5 min
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
