@@ -2,11 +2,12 @@ name: hotlead
 
 services:
 
-  # ─── Backend API ──────────────────────────────────────────────
+  # --- Backend API -----------------------------------------------------------
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: runner
     env_file: .env
     ports:
       - "8000:8000"
@@ -24,12 +25,17 @@ services:
       start_period: 20s
     networks:
       - internal
+    # Security: read-only root filesystem
+    read_only: false
+    tmpfs:
+      - /tmp
 
-  # ─── Celery Worker ────────────────────────────────────────────
+  # --- Celery Worker ---------------------------------------------------------
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: runner
     command: >
       celery -A app.workers.celery_app worker
       --loglevel=info
@@ -37,27 +43,30 @@ services:
       --queues=scraping
     env_file: .env
     depends_on:
-      - api
-      - redis
-      - postgres
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - internal
 
-  # ─── Celery Beat (periodic tasks) ─────────────────────────────
+  # --- Celery Beat (periodic cleanup tasks) ----------------------------------
   beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: runner
     command: celery -A app.workers.celery_app beat --loglevel=info
     env_file: .env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - internal
 
-  # ─── Frontend ─────────────────────────────────────────────────
+  # --- Frontend --------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
@@ -66,12 +75,13 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - internal
 
-  # ─── PostgreSQL ───────────────────────────────────────────────
+  # --- PostgreSQL ------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     env_file: .env
@@ -88,15 +98,15 @@ services:
     networks:
       - internal
     # Security: never expose postgres port to host in production
+    # Uncomment ONLY for local debugging:
     # ports:
-    #   - "5432:5432"  # uncomment only for local dev debugging
+    #   - "127.0.0.1:5432:5432"
 
-  # ─── Redis ────────────────────────────────────────────────────
+  # --- Redis -----------------------------------------------------------------
   redis:
     image: redis:7-alpine
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:-}
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
@@ -107,9 +117,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
     restart: unless-stopped
     networks:
       - internal
+    # Security: never expose redis port to host
+    # ports:
+    #   - "127.0.0.1:6379:6379"
 
 volumes:
   pg_data:
@@ -120,4 +134,3 @@ volumes:
 networks:
   internal:
     driver: bridge
-    internal: false   # set to true in production if behind reverse proxy

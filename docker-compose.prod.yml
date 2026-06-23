@@ -1,19 +1,21 @@
 name: hotlead
 
-# Production overrides — use with:
-# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Production overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
-
   api:
     restart: always
     environment:
       - LOG_LEVEL=WARNING
+      - ENVIRONMENT=production
     deploy:
       resources:
         limits:
           cpus: "1.0"
           memory: 512M
+        reservations:
+          memory: 256M
 
   worker:
     restart: always
@@ -22,6 +24,16 @@ services:
         limits:
           cpus: "2.0"
           memory: 1G
+        reservations:
+          memory: 512M
+
+  beat:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 128M
 
   frontend:
     restart: always
@@ -30,6 +42,8 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
+        reservations:
+          memory: 128M
 
   postgres:
     restart: always
