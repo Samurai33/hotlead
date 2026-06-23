@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class AccountCreate(BaseModel):
     username: str
-    session_json: str       # JSON string of instagrapi session — NO password
+    session_json: str  # JSON string of instagrapi session — NO password
     proxy_url: str | None = None
 
 

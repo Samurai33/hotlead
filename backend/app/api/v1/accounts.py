@@ -40,9 +40,7 @@ async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)
 @router.get("/", response_model=list[AccountRead])
 async def list_accounts(db: AsyncSession = Depends(get_db)):
     """List all accounts in the pool with their current status."""
-    result = await db.execute(
-        select(Account).order_by(Account.created_at.desc())
-    )
+    result = await db.execute(select(Account).order_by(Account.created_at.desc()))
     return result.scalars().all()
 
 

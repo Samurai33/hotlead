@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 from app.core.database import get_db
 from app.models.job import Job
 from app.models.prospect import Prospect
@@ -77,24 +77,37 @@ async def export_prospects(
 
 def _export_csv(prospects: list[Prospect], filename: str) -> StreamingResponse:
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=[
-        "username", "full_name", "email", "phone", "website",
-        "biography", "followers", "following", "is_business", "is_verified",
-    ])
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "username",
+            "full_name",
+            "email",
+            "phone",
+            "website",
+            "biography",
+            "followers",
+            "following",
+            "is_business",
+            "is_verified",
+        ],
+    )
     writer.writeheader()
     for p in prospects:
-        writer.writerow({
-            "username": p.username,
-            "full_name": p.full_name or "",
-            "email": p.email or "",
-            "phone": p.phone or "",
-            "website": p.website or "",
-            "biography": (p.biography or "").replace("\n", " "),
-            "followers": p.followers,
-            "following": p.following,
-            "is_business": p.is_business,
-            "is_verified": p.is_verified,
-        })
+        writer.writerow(
+            {
+                "username": p.username,
+                "full_name": p.full_name or "",
+                "email": p.email or "",
+                "phone": p.phone or "",
+                "website": p.website or "",
+                "biography": (p.biography or "").replace("\n", " "),
+                "followers": p.followers,
+                "following": p.following,
+                "is_business": p.is_business,
+                "is_verified": p.is_verified,
+            }
+        )
 
     output.seek(0)
     return StreamingResponse(

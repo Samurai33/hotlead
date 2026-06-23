@@ -2,6 +2,7 @@
 Extract contact information from Instagram bio text.
 All data extracted here is publicly visible on Instagram profiles.
 """
+
 import re
 
 # Email: RFC 5321 simplified

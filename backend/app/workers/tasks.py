@@ -2,8 +2,8 @@
 Celery tasks for Instagram scraping.
 Each task processes followers in batches, checkpointing progress to DB.
 """
+
 import logging
-import uuid
 from celery import shared_task
 
 from app.scraper.client import RateLimitExceeded, AccountChallenged
@@ -74,6 +74,7 @@ def scrape_followers(self, job_id: str, profile_username: str) -> dict:
 
             # Persist updated session
             from app.workers._sync_helpers import save_session_sync
+
             save_session_sync(db, account, client)
 
             logger.info(f"[Job {job_id}] Completed")

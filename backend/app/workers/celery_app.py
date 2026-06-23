@@ -17,8 +17,8 @@ celery_app.conf.update(
     timezone="America/Sao_Paulo",
     enable_utc=True,
     task_track_started=True,
-    task_acks_late=True,               # only ack after task completes
-    worker_prefetch_multiplier=1,      # one task at a time per worker
+    task_acks_late=True,  # only ack after task completes
+    worker_prefetch_multiplier=1,  # one task at a time per worker
     task_routes={
         "app.workers.tasks.*": {"queue": "scraping"},
     },

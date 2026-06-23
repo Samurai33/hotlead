@@ -2,6 +2,7 @@
 Account pool — manages rotation of Instagram accounts.
 Rate limit state is tracked in Redis for accuracy across workers.
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -19,7 +20,9 @@ settings = get_settings()
 _RATE_LIMIT_KEY = "hotlead:ratelimit:{account_id}"
 
 
-async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account, IGClient]:
+async def get_available_client(
+    db: AsyncSession, redis: Redis
+) -> tuple[Account, IGClient]:
     """
     Returns an active account and its initialized IGClient.
     Rotates to the next account if current one is near rate limit.
@@ -33,7 +36,9 @@ async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account,
     accounts = result.scalars().all()
 
     if not accounts:
-        raise RuntimeError("No active Instagram accounts in pool. Add accounts via /api/v1/accounts.")
+        raise RuntimeError(
+            "No active Instagram accounts in pool. Add accounts via /api/v1/accounts."
+        )
 
     for account in accounts:
         count = await _get_request_count(redis, account.id)

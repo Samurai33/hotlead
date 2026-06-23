@@ -23,7 +23,9 @@ class Account(UUIDBase):
     proxy_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Status tracking
-    status: Mapped[str] = mapped_column(String(20), default=AccountStatus.active, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default=AccountStatus.active, index=True
+    )
 
     # Rate limiting (tracked in Redis, mirrored here for UI)
     requests_today: Mapped[int] = mapped_column(Integer, default=0)

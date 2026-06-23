@@ -6,10 +6,13 @@ from unittest.mock import patch, MagicMock
 async def test_create_job(client):
     with patch("app.api.v1.jobs.scrape_followers") as mock_task:
         mock_task.apply_async.return_value = MagicMock(id="celery-task-123")
-        resp = await client.post("/api/v1/jobs", json={
-            "profile_username": "cozinha4e20",
-            "mode": "followers",
-        })
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={
+                "profile_username": "cozinha4e20",
+                "mode": "followers",
+            },
+        )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -22,9 +25,12 @@ async def test_create_job(client):
 async def test_create_job_strips_at_symbol(client):
     with patch("app.api.v1.jobs.scrape_followers") as mock_task:
         mock_task.apply_async.return_value = MagicMock(id="celery-task-456")
-        resp = await client.post("/api/v1/jobs", json={
-            "profile_username": "@cozinha4e20",
-        })
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={
+                "profile_username": "@cozinha4e20",
+            },
+        )
 
     assert resp.status_code == 201
     assert resp.json()["profile_username"] == "cozinha4e20"
@@ -33,6 +39,7 @@ async def test_create_job_strips_at_symbol(client):
 @pytest.mark.asyncio
 async def test_get_job_not_found(client):
     import uuid
+
     resp = await client.get(f"/api/v1/jobs/{uuid.uuid4()}")
     assert resp.status_code == 404
 
@@ -48,6 +55,7 @@ async def test_list_jobs_empty(client):
 async def test_requires_api_key(client):
     from httpx import AsyncClient, ASGITransport
     from app.main import app
+
     # Request without API key
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

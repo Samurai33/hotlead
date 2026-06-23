@@ -8,6 +8,7 @@ ANTI-BAN RULES (never bypass):
   3. Save session JSON after every login
   4. Never store Instagram passwords
 """
+
 import json
 import logging
 import random
@@ -43,7 +44,9 @@ class IGClient:
     Handles delays, session management, and error translation.
     """
 
-    def __init__(self, username: str, session_json: str | None, proxy_url: str | None = None):
+    def __init__(
+        self, username: str, session_json: str | None, proxy_url: str | None = None
+    ):
         self.username = username
         self._cl = Client()
 
@@ -54,7 +57,9 @@ class IGClient:
             self._cl.load_settings(json.loads(session_json))
             logger.info(f"[{username}] Loaded existing session")
         else:
-            raise ValueError(f"No session for account @{username}. Login first via add_account script.")
+            raise ValueError(
+                f"No session for account @{username}. Login first via add_account script."
+            )
 
     # ─── Public interface ─────────────────────────────────────
 

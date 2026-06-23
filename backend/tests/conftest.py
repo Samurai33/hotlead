@@ -1,11 +1,9 @@
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.main import app
 from app.core.database import Base, get_db
-from app.core.config import get_settings
 
 TEST_DATABASE_URL = "postgresql+asyncpg://hotlead:hotlead@localhost:5432/hotlead_test"
 TEST_API_KEY = "test-api-key-1234"
@@ -37,6 +35,7 @@ async def client(db):
 
     # Override API key for tests
     import os
+
     os.environ["API_KEY"] = TEST_API_KEY
 
     app.dependency_overrides[get_db] = override_get_db

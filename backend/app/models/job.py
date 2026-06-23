@@ -1,6 +1,5 @@
-import uuid
 from enum import Enum
-from sqlalchemy import String, Integer, Text, ForeignKey
+from sqlalchemy import String, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import UUIDBase
 
@@ -22,9 +21,13 @@ class JobStatus(str, Enum):
 class Job(UUIDBase):
     __tablename__ = "jobs"
 
-    profile_username: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    profile_username: Mapped[str] = mapped_column(
+        String(100), nullable=False, index=True
+    )
     mode: Mapped[str] = mapped_column(String(20), default=JobMode.followers)
-    status: Mapped[str] = mapped_column(String(20), default=JobStatus.pending, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default=JobStatus.pending, index=True
+    )
 
     # Progress
     total_count: Mapped[int] = mapped_column(Integer, default=0)
