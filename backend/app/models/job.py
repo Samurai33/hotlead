@@ -1,7 +1,12 @@
 from enum import Enum
+from typing import TYPE_CHECKING
+
 from sqlalchemy import String, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import UUIDBase
+
+if TYPE_CHECKING:
+    from app.models.prospect import Prospect
 
 
 class JobMode(str, Enum):
@@ -42,6 +47,6 @@ class Job(UUIDBase):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    prospects: Mapped[list["Prospect"]] = relationship(  # noqa: F821
+    prospects: Mapped[list["Prospect"]] = relationship(
         back_populates="job", cascade="all, delete-orphan"
     )

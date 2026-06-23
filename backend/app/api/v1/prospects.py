@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import uuid
+from collections.abc import Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,7 +76,7 @@ async def export_prospects(
         return _export_json(prospects, filename)
 
 
-def _export_csv(prospects: list[Prospect], filename: str) -> StreamingResponse:
+def _export_csv(prospects: Sequence[Prospect], filename: str) -> StreamingResponse:
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
@@ -117,7 +118,7 @@ def _export_csv(prospects: list[Prospect], filename: str) -> StreamingResponse:
     )
 
 
-def _export_json(prospects: list[Prospect], filename: str) -> StreamingResponse:
+def _export_json(prospects: Sequence[Prospect], filename: str) -> StreamingResponse:
     data = [
         {
             "username": p.username,

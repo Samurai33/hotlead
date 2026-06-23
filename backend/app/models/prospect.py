@@ -1,7 +1,12 @@
 import uuid
+from typing import TYPE_CHECKING
+
 from sqlalchemy import String, Integer, Text, Boolean, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import UUIDBase
+
+if TYPE_CHECKING:
+    from app.models.job import Job
 
 
 class Prospect(UUIDBase):
@@ -30,4 +35,4 @@ class Prospect(UUIDBase):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationship
-    job: Mapped["Job"] = relationship(back_populates="prospects")  # noqa: F821
+    job: Mapped["Job"] = relationship(back_populates="prospects")
