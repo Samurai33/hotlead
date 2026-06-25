@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useJobs } from "@/hooks/use-job";
 import { jobsApi } from "@/lib/api";
+import { clearApiKey } from "@/lib/auth";
 import { formatDate, formatNumber, progressPct, STATUS_LABELS } from "@/lib/utils";
-import { Plus, RefreshCw, Mail, Users } from "lucide-react";
+import { Plus, RefreshCw, Mail, Users, LogOut } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "text-status-pending bg-status-pending/10",
@@ -15,7 +17,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { jobs, isLoading, mutate } = useJobs();
+
+  function handleLogout() {
+    clearApiKey();
+    router.replace("/login");
+  }
 
   const stats = {
     total: jobs.length,
@@ -37,6 +45,13 @@ export default function DashboardPage() {
           <Link href="/jobs/new" className="btn-primary text-sm flex items-center gap-1.5">
             <Plus size={14} /> Novo Job
           </Link>
+          <button
+            onClick={handleLogout}
+            className="btn-ghost text-sm p-2 text-text-muted hover:text-status-error"
+            title="Sair"
+          >
+            <LogOut size={14} />
+          </button>
         </nav>
       </header>
 

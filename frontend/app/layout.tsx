@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fira_Code, Fira_Sans } from "next/font/google";
 import "./globals.css";
+import AuthGuard from "@/components/shared/AuthGuard";
 
 const firaCode = Fira_Code({
   subsets: ["latin"],
@@ -32,7 +33,7 @@ export default function RootLayout({
       <body
         className={`${firaCode.variable} ${firaSans.variable} bg-background text-text font-sans antialiased`}
       >
-        {children}
+        <AuthGuard>{children}</AuthGuard>
       </body>
     </html>
   );
