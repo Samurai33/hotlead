@@ -1,11 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getApiKey, redirectToLogin } from "@/lib/auth";
 
-function getApiKey(): string {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("hotlead_api_key") ?? "";
-  }
-  return process.env.API_KEY ?? "";
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 class ApiError extends Error {
   constructor(
@@ -31,6 +26,9 @@ async function request<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      redirectToLogin();
+    }
     let detail = `HTTP ${res.status}`;
     try {
       const body = await res.json();
@@ -84,8 +82,10 @@ export const jobsApi = {
     request<Job>(`/api/v1/jobs/${id}/resume`, { method: "POST" }),
   delete: (id: string) =>
     request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
-  exportUrl: (id: string, fmt: "csv" | "json" = "csv") =>
-    `${API_URL}/api/v1/jobs/${id}/export?fmt=${fmt}&api_key=${getApiKey()}`,
+  exportUrl: (id: string, fmt: "csv" | "json" = "csv") => {
+    const key = getApiKey();
+    return `${API_URL}/api/v1/jobs/${id}/export?fmt=${fmt}${key ? `&api_key=${key}` : ""}`;
+  },
 };
 
 // ─── Prospects ────────────────────────────────────────────────
