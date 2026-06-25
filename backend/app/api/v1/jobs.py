@@ -3,10 +3,29 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.models.job import Job, JobStatus
+from app.models.job import Job, JobMode, JobStatus
 from app.schemas.job import JobCreate, JobRead, JobListRead
 
 router = APIRouter()
+
+
+def _enqueue_job(job: Job):
+    """Dispatch the right Celery task based on job.mode and return the task result."""
+    from app.workers.tasks import scrape_followers, scrape_following, scrape_commenters
+    if job.mode == JobMode.commenters:
+        return scrape_commenters.apply_async(
+            args=[str(job.id), job.target_post_url],
+            queue="scraping",
+        )
+    if job.mode == JobMode.following:
+        return scrape_following.apply_async(
+            args=[str(job.id), job.profile_username],
+            queue="scraping",
+        )
+    return scrape_followers.apply_async(
+        args=[str(job.id), job.profile_username],
+        queue="scraping",
+    )
 
 
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
@@ -15,17 +34,13 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     job = Job(
         profile_username=payload.profile_username.lstrip("@"),
         mode=payload.mode,
+        target_post_url=payload.target_post_url,
     )
     db.add(job)
     await db.commit()
     await db.refresh(job)
 
-    # Enqueue Celery task
-    from app.workers.tasks import scrape_followers
-    task = scrape_followers.apply_async(
-        args=[str(job.id), job.profile_username],
-        queue="scraping",
-    )
+    task = _enqueue_job(job)
     job.celery_task_id = task.id
     job.status = JobStatus.pending
     await db.commit()
@@ -77,11 +92,7 @@ async def resume_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if job.status != JobStatus.paused:
         raise HTTPException(status_code=400, detail=f"Cannot resume job with status '{job.status}'")
 
-    from app.workers.tasks import scrape_followers
-    task = scrape_followers.apply_async(
-        args=[str(job.id), job.profile_username],
-        queue="scraping",
-    )
+    task = _enqueue_job(job)
     job.celery_task_id = task.id
     job.status = JobStatus.pending
     await db.commit()

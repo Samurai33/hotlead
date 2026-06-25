@@ -76,7 +76,7 @@ export interface JobSummary {
 export const jobsApi = {
   list: () => request<JobSummary[]>("/api/v1/jobs"),
   get: (id: string) => request<Job>(`/api/v1/jobs/${id}`),
-  create: (data: { profile_username: string; mode?: JobMode }) =>
+  create: (data: { profile_username: string; mode?: JobMode; target_post_url?: string }) =>
     request<Job>("/api/v1/jobs", { method: "POST", body: JSON.stringify(data) }),
   pause: (id: string) =>
     request<Job>(`/api/v1/jobs/${id}/pause`, { method: "POST" }),

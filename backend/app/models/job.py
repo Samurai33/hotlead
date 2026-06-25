@@ -32,6 +32,9 @@ class Job(UUIDBase):
     emails_found:  Mapped[int] = mapped_column(Integer, default=0)
     phones_found:  Mapped[int] = mapped_column(Integer, default=0)
 
+    # Required when mode=commenters — URL of the Instagram post to scrape
+    target_post_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Celery task reference (for revoke on delete)
     celery_task_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
 

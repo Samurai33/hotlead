@@ -3,29 +3,37 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { jobsApi, type JobMode } from "@/lib/api";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
 
 const MODES: { value: JobMode; label: string; description: string }[] = [
   { value: "followers",  label: "Seguidores",   description: "Extrai quem segue o perfil" },
   { value: "following",  label: "Seguindo",      description: "Extrai quem o perfil segue" },
-  { value: "commenters", label: "Comentadores",  description: "Extrai quem comentou nos posts" },
+  { value: "commenters", label: "Comentadores",  description: "Extrai quem comentou em um post específico" },
 ];
 
 export default function NewJobPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [mode, setMode]         = useState<JobMode>("followers");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [username, setUsername]   = useState("");
+  const [mode, setMode]           = useState<JobMode>("followers");
+  const [postUrl, setPostUrl]     = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+
+  const isCommenters = mode === "commenters";
+  const isValid = username.trim() && (!isCommenters || postUrl.trim());
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!isValid) return;
     setLoading(true);
     setError(null);
     try {
-      const job = await jobsApi.create({ profile_username: username, mode });
+      const job = await jobsApi.create({
+        profile_username: username,
+        mode,
+        ...(isCommenters ? { target_post_url: postUrl.trim() } : {}),
+      });
       router.push(`/jobs/${job.id}`);
     } catch (err: any) {
       setError(err.detail ?? "Erro ao criar job");
@@ -91,13 +99,38 @@ export default function NewJobPage() {
           </div>
         </div>
 
+        {/* Post URL — only shown for commenters mode */}
+        {isCommenters && (
+          <div>
+            <label className="block text-sm font-medium mb-1.5">URL do Post</label>
+            <div className="relative">
+              <LinkIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                className="input pl-8"
+                placeholder="https://www.instagram.com/p/ABC123/"
+                value={postUrl}
+                onChange={(e) => setPostUrl(e.target.value)}
+                required={isCommenters}
+                type="url"
+              />
+            </div>
+            <p className="text-xs text-text-muted mt-1.5">
+              Cole a URL de um post público do Instagram
+            </p>
+          </div>
+        )}
+
         {error && (
           <p className="text-status-error text-sm bg-status-error/10 px-3 py-2 rounded-md">
             {error}
           </p>
         )}
 
-        <button type="submit" disabled={loading || !username.trim()} className="btn-primary w-full justify-center flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={loading || !isValid}
+          className="btn-primary w-full justify-center flex items-center gap-2"
+        >
           {loading && <Loader2 size={14} className="animate-spin" />}
           {loading ? "Iniciando..." : "Iniciar Scraping"}
         </button>
