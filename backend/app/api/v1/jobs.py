@@ -11,6 +11,7 @@ from app.schemas.job import JobCreate, JobListRead, JobRead
 router = APIRouter()
 scrape_followers = None
 scrape_following = None
+scrape_commenters = None
 
 
 def _get_scrape_followers_task():
@@ -31,11 +32,30 @@ def _get_scrape_following_task():
     return scrape_following
 
 
+def _get_scrape_commenters_task():
+    global scrape_commenters
+    if scrape_commenters is None:
+        from app.workers.tasks import scrape_commenters as task
+
+        scrape_commenters = task
+    return scrape_commenters
+
+
 def _get_task_for_mode(mode: str):
     """Return the Celery task matching the job mode."""
+    if mode == JobMode.commenters:
+        return _get_scrape_commenters_task()
     if mode == JobMode.following:
         return _get_scrape_following_task()
     return _get_scrape_followers_task()
+
+
+def _get_task_args(job: Job) -> list[str]:
+    if job.mode == JobMode.commenters:
+        if not job.target_post_url:
+            raise HTTPException(status_code=400, detail="target_post_url is required for commenters jobs")
+        return [str(job.id), job.target_post_url]
+    return [str(job.id), job.profile_username]
 
 
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
@@ -44,6 +64,7 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     job = Job(
         profile_username=payload.profile_username.lstrip("@"),
         mode=payload.mode,
+        target_post_url=payload.target_post_url,
     )
     db.add(job)
     await db.commit()
@@ -51,7 +72,7 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
 
     # Enqueue Celery task matching the requested mode.
     task = _get_task_for_mode(job.mode).apply_async(
-        args=[str(job.id), job.profile_username],
+        args=_get_task_args(job),
         queue="scraping",
     )
     job.celery_task_id = task.id
@@ -106,7 +127,7 @@ async def resume_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Cannot resume job with status '{job.status}'")
 
     task = _get_task_for_mode(job.mode).apply_async(
-        args=[str(job.id), job.profile_username],
+        args=_get_task_args(job),
         queue="scraping",
     )
     job.celery_task_id = task.id

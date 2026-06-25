@@ -39,14 +39,40 @@ async def test_create_job_following_dispatches_scrape_following(client):
 
 
 @pytest.mark.asyncio
+async def test_create_job_commenters_dispatches_scrape_commenters(client):
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
+        mock_task.apply_async.return_value = MagicMock(id="celery-task-789")
+        mock_get_task.return_value = mock_task
+        resp = await client.post("/api/v1/jobs", json={
+            "profile_username": "cozinha4e20",
+            "mode": "commenters",
+            "target_post_url": "https://www.instagram.com/p/ABC123/",
+        })
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["mode"] == "commenters"
+    assert data["target_post_url"] == "https://www.instagram.com/p/ABC123/"
+    mock_get_task.assert_called_once_with("commenters")
+    mock_task.apply_async.assert_called_once_with(
+        args=[data["id"], "https://www.instagram.com/p/ABC123/"],
+        queue="scraping",
+    )
+
+
+@pytest.mark.asyncio
 async def test_get_task_for_mode_returns_correct_tasks():
     from app.api.v1.jobs import _get_task_for_mode
-    from app.workers.tasks import scrape_followers, scrape_following
 
-    assert _get_task_for_mode("followers") is scrape_followers
-    assert _get_task_for_mode("following") is scrape_following
-    # commenters falls back to scrape_followers until its task is implemented
-    assert _get_task_for_mode("commenters") is scrape_followers
+    with (
+        patch("app.api.v1.jobs._get_scrape_followers_task", return_value="followers-task"),
+        patch("app.api.v1.jobs._get_scrape_following_task", return_value="following-task"),
+        patch("app.api.v1.jobs._get_scrape_commenters_task", return_value="commenters-task"),
+    ):
+        assert _get_task_for_mode("followers") == "followers-task"
+        assert _get_task_for_mode("following") == "following-task"
+        assert _get_task_for_mode("commenters") == "commenters-task"
 
 
 @pytest.mark.asyncio
