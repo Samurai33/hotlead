@@ -1,7 +1,9 @@
-from enum import Enum
 from datetime import datetime
-from sqlalchemy import String, Integer, Text, DateTime
+from enum import Enum
+
+from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.models.base import UUIDBase
 
 

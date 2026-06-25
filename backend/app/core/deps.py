@@ -1,7 +1,9 @@
 from typing import Annotated
+
 from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.core.redis import get_redis
 from app.core.security import require_api_key

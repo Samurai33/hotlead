@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
+
 from pydantic import BaseModel, field_validator, model_validator
-from app.models.job import JobMode, JobStatus
+
+from app.models.job import JobMode
 
 
 class JobCreate(BaseModel):

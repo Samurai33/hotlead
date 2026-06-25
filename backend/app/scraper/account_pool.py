@@ -1,9 +1,11 @@
 """Account pool with Redis rate-limit tracking and rotation."""
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import get_settings
 from app.models.account import Account, AccountStatus
 from app.scraper.client import IGClient
@@ -41,12 +43,12 @@ async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account,
 
 async def mark_account_cooldown(account: Account, db: AsyncSession, redis: Redis) -> None:
     account.status = AccountStatus.cooldown
-    account.cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=settings.ig_cooldown_minutes)
+    account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
     await db.commit()
     logger.warning(f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min")
 
 
 async def save_session(account: Account, client: IGClient, db: AsyncSession) -> None:
     account.session_json = client.get_updated_session()
-    account.last_used_at = datetime.now(timezone.utc)
+    account.last_used_at = datetime.now(UTC)
     await db.commit()

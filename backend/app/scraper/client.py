@@ -2,22 +2,38 @@
 Instagram client wrapper — simulates Android IG app.
 Anti-ban: mandatory random delay, session-only auth, batch pagination.
 """
-import json, logging, random, time
-from typing import Generator
+import json
+import logging
+import random
+import time
+from collections.abc import Generator
+
 from instagrapi import Client
 from instagrapi.exceptions import (
-    ChallengeRequired, LoginRequired, RateLimitError, UserNotFound,
+    ChallengeRequired,
+    LoginRequired,
     PleaseWaitFewMinutes,
+    RateLimitError,
+    UserNotFound,
 )
+
 from app.core.config import get_settings
 from app.scraper.extractor import extract_email, extract_phone, extract_website
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-class RateLimitExceeded(Exception): pass
-class AccountChallenged(Exception): pass
-class ProfileNotFound(Exception): pass
+
+class RateLimitExceeded(Exception):
+    pass
+
+
+class AccountChallenged(Exception):
+    pass
+
+
+class ProfileNotFound(Exception):
+    pass
 
 
 class IGClient:

@@ -8,7 +8,8 @@ _SKIP     = {"linktr.ee","linktree.com","instagram.com","wa.me","t.me","bio.link
 
 
 def extract_email(bio: str | None) -> str | None:
-    if not bio: return None
+    if not bio:
+        return None
     m = _EMAIL_RE.search(bio)
     if m:
         e = m.group(0).lower().strip(".")
@@ -18,7 +19,8 @@ def extract_email(bio: str | None) -> str | None:
 
 
 def extract_phone(bio: str | None) -> str | None:
-    if not bio: return None
+    if not bio:
+        return None
     m = _PHONE_RE.search(bio)
     if m:
         d = re.sub(r"\D", "", m.group(0))
@@ -32,7 +34,8 @@ def extract_website(bio: str | None, external_url: str | None = None) -> str | N
         d = _domain(external_url)
         if d and d not in _SKIP:
             return external_url
-    if not bio: return None
+    if not bio:
+        return None
     for m in _URL_RE.finditer(bio):
         url = m.group(0).rstrip(".,;)")
         d = _domain(url)

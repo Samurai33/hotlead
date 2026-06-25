@@ -4,13 +4,13 @@ Celery workers are sync — this module wraps DB/Redis for use inside tasks.
 """
 import logging
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
-from typing import Generator
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import create_engine, text, select, update
-from sqlalchemy.orm import sessionmaker, Session
 import redis as sync_redis
+from sqlalchemy import create_engine, select, text, update
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 from app.scraper.client import IGClient
@@ -64,7 +64,7 @@ def update_job_status(
     error_message: str | None = None,
 ) -> None:
     from app.models.job import Job
-    vals = {"status": status, "updated_at": datetime.now(timezone.utc)}
+    vals = {"status": status, "updated_at": datetime.now(UTC)}
     if error_message is not None:
         vals["error_message"] = error_message
     db.execute(update(Job).where(Job.id == uuid.UUID(job_id)).values(**vals))
@@ -97,8 +97,10 @@ def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
             is_verified=data.get("is_verified", False),
         )
         prospects.append(p)
-        if p.email: emails += 1
-        if p.phone: phones += 1
+        if p.email:
+            emails += 1
+        if p.phone:
+            phones += 1
     db.bulk_save_objects(prospects)
     if emails > 0 or phones > 0:
         db.execute(
@@ -140,7 +142,7 @@ def get_account_sync(db: Session, redis_client) -> tuple:
 def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
     from app.models.account import AccountStatus
     account.status = AccountStatus.cooldown
-    account.cooldown_until = datetime.now(timezone.utc) + timedelta(
+    account.cooldown_until = datetime.now(UTC) + timedelta(
         minutes=settings.ig_cooldown_minutes
     )
     db.commit()
@@ -149,5 +151,5 @@ def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
 
 def save_session_sync(db: Session, account, client: IGClient) -> None:
     account.session_json = client.get_updated_session()
-    account.last_used_at = datetime.now(timezone.utc)
+    account.last_used_at = datetime.now(UTC)
     db.commit()
