@@ -39,7 +39,8 @@ async def test_protected_route_requires_api_key(client):
     from httpx import AsyncClient, ASGITransport
     from app.main import app
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test",
+        follow_redirects=True,
     ) as no_auth:
-        resp = await no_auth.get("/api/v1/jobs")
+        resp = await no_auth.get("/api/v1/jobs/")
     assert resp.status_code in (401, 403)
