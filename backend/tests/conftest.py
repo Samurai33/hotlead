@@ -47,6 +47,7 @@ async def client(db):
         transport=ASGITransport(app=app),
         base_url="http://test",
         headers={"X-API-Key": TEST_API_KEY},
+        follow_redirects=True,
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
