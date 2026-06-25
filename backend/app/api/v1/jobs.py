@@ -1,10 +1,13 @@
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.models.job import Job, JobStatus
-from app.schemas.job import JobCreate, JobRead, JobListRead
+from app.schemas.job import JobCreate, JobListRead, JobRead
+from app.workers.tasks import scrape_followers
 
 router = APIRouter()
 
@@ -21,7 +24,6 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(job)
 
     # Enqueue Celery task
-    from app.workers.tasks import scrape_followers
     task = scrape_followers.apply_async(
         args=[str(job.id), job.profile_username],
         queue="scraping",
@@ -77,7 +79,6 @@ async def resume_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if job.status != JobStatus.paused:
         raise HTTPException(status_code=400, detail=f"Cannot resume job with status '{job.status}'")
 
-    from app.workers.tasks import scrape_followers
     task = scrape_followers.apply_async(
         args=[str(job.id), job.profile_username],
         queue="scraping",
