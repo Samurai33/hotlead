@@ -1,5 +1,6 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
 from app.main import app
 
 
@@ -13,14 +14,14 @@ async def test_health_no_auth():
 @pytest.mark.asyncio
 async def test_jobs_no_key():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        resp = await c.get("/api/v1/jobs")
+        resp = await c.get("/api/v1/jobs/")
     assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
 async def test_accounts_no_key():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        resp = await c.get("/api/v1/accounts")
+        resp = await c.get("/api/v1/accounts/")
     assert resp.status_code in (401, 403)
 
 
@@ -30,7 +31,7 @@ async def test_wrong_key_rejected():
         transport=ASGITransport(app=app), base_url="http://test",
         headers={"X-API-Key": "wrong-key"}
     ) as c:
-        resp = await c.get("/api/v1/jobs")
+        resp = await c.get("/api/v1/jobs/")
     assert resp.status_code == 403
 
 
