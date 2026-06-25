@@ -4,7 +4,7 @@ import structlog
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.security import require_api_key
 from app.api.v1 import router as api_v1_router
 
@@ -37,7 +37,6 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
 @app.get("/health", tags=["ops"])
 async def health():
     from sqlalchemy import text
-    from app.core.database import AsyncSessionLocal
     db_ok = redis_ok = False
     try:
         async with AsyncSessionLocal() as s:
@@ -45,7 +44,7 @@ async def health():
         db_ok = True
     except Exception: pass
     try:
-        from app.core.redis import get_redis_client
+        from app.core.redis import get_redis_client  # noqa: PLC0415
         r = await get_redis_client()
         await r.ping()
         redis_ok = True
