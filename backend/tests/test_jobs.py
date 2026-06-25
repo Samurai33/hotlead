@@ -1,5 +1,6 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 @pytest.mark.asyncio
@@ -46,11 +47,12 @@ async def test_list_jobs_empty(client):
 
 @pytest.mark.asyncio
 async def test_requires_api_key(client):
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
     # Request without API key
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as no_auth:
-        resp = await no_auth.post("/api/v1/jobs", json={"profile_username": "test"})
+        resp = await no_auth.post("/api/v1/jobs/", json={"profile_username": "test"})
     assert resp.status_code in (401, 403)
