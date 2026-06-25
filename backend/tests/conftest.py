@@ -12,7 +12,7 @@ TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://hotlead:91798a77327350340aeb63ab211a46e3@localhost:5432/hotlead"
 )
-TEST_API_KEY = "test-api-key-1234"
+TEST_API_KEY = os.getenv("API_KEY", "test-api-key-1234")
 
 
 @pytest_asyncio.fixture(scope="session")
