@@ -1,6 +1,4 @@
-import asyncio
 import os
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -15,16 +13,7 @@ TEST_DB_URL = os.getenv(
 TEST_API_KEY = os.getenv("API_KEY", "test-api-key-1234")
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Single event loop for the whole test session so session-scoped async fixtures
-    (engine) share the same loop as function-scoped tests."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def engine():
     e = create_async_engine(TEST_DB_URL, echo=False)
     async with e.begin() as conn:
