@@ -1,37 +1,32 @@
 """
 Celery tasks for Instagram scraping.
-Processes followers in batches of 50, checkpointing after each batch.
+Processes users in batches of 50, checkpointing after each batch.
 Supports pause/resume by checking job.status on every iteration.
 """
 import logging
+from collections.abc import Generator
+
 from celery import shared_task
-from app.scraper.client import RateLimitExceeded, AccountChallenged
+
+from app.scraper.client import AccountChallenged, RateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
-    bind=True,
-    max_retries=3,
-    name="app.workers.tasks.scrape_followers",
-)
-def scrape_followers(self, job_id: str, profile_username: str) -> dict:
-    """
-    Main scraping task — runs synchronously in Celery worker.
-
-    1. Mark job 'running'
-    2. Pick available IG account
-    3. Iterate followers in batches of 50
-    4. Save batch, update counter, check if paused
-    5. Mark 'done', save session
-    """
+def _run_scrape(self, job_id: str, profile_username: str, iterator_name: str) -> dict:
+    """Shared scraping loop used by all mode-specific tasks."""
     from app.workers._sync_helpers import (
-        get_sync_db, get_sync_redis, get_job, update_job_status,
-        save_prospect_batch, get_account_sync, mark_account_cooldown_sync,
+        get_account_sync,
+        get_job,
+        get_sync_db,
+        get_sync_redis,
+        mark_account_cooldown_sync,
+        save_prospect_batch,
         save_session_sync,
+        update_job_status,
     )
 
-    logger.info(f"[Job {job_id}] Starting: @{profile_username}")
+    logger.info(f"[Job {job_id}] Starting ({iterator_name}): @{profile_username}")
 
     with get_sync_db() as db, get_sync_redis() as redis:
         job = get_job(db, job_id)
@@ -48,9 +43,10 @@ def scrape_followers(self, job_id: str, profile_username: str) -> dict:
             return {"status": "error", "detail": str(exc)}
 
         try:
+            iterator: Generator = getattr(client, iterator_name)(profile_username)
             batch: list[dict] = []
 
-            for user_data in client.iter_followers(profile_username):
+            for user_data in iterator:
                 current = get_job(db, job_id)
                 if current and current.status == "paused":
                     logger.info(f"[Job {job_id}] Paused gracefully")
@@ -93,3 +89,23 @@ def scrape_followers(self, job_id: str, profile_username: str) -> dict:
             logger.exception(f"[Job {job_id}] Error: {exc}")
             update_job_status(db, job_id, "error", error_message=str(exc)[:500])
             raise
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    name="app.workers.tasks.scrape_followers",
+)
+def scrape_followers(self, job_id: str, profile_username: str) -> dict:
+    """Scrape followers of a public Instagram profile."""
+    return _run_scrape(self, job_id, profile_username, "iter_followers")
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    name="app.workers.tasks.scrape_following",
+)
+def scrape_following(self, job_id: str, profile_username: str) -> dict:
+    """Scrape accounts followed by a public Instagram profile."""
+    return _run_scrape(self, job_id, profile_username, "iter_following")
