@@ -4,9 +4,11 @@ Processes users in batches of 50, checkpointing after each batch.
 Supports pause/resume by checking job.status on every iteration.
 """
 import logging
-from typing import Generator
+from collections.abc import Generator
+
 from celery import shared_task
-from app.scraper.client import RateLimitExceeded, AccountChallenged
+
+from app.scraper.client import AccountChallenged, RateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +20,14 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
     iterator_name — method name on IGClient to call with target as first arg.
     """
     from app.workers._sync_helpers import (
-        get_sync_db, get_sync_redis, get_job, update_job_status,
-        save_prospect_batch, get_account_sync, mark_account_cooldown_sync,
+        get_account_sync,
+        get_job,
+        get_sync_db,
+        get_sync_redis,
+        mark_account_cooldown_sync,
+        save_prospect_batch,
         save_session_sync,
+        update_job_status,
     )
 
     logger.info(f"[Job {job_id}] Starting ({iterator_name}): {target}")

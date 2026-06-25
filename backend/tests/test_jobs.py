@@ -4,9 +4,11 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_create_job(client):
-    with patch("app.api.v1.jobs.scrape_followers") as mock_task:
+async def test_create_job_followers_dispatches_scrape_followers(client):
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
         mock_task.apply_async.return_value = MagicMock(id="celery-task-123")
+        mock_get_task.return_value = mock_task
         resp = await client.post("/api/v1/jobs", json={
             "profile_username": "cozinha4e20",
             "mode": "followers",
@@ -17,12 +19,42 @@ async def test_create_job(client):
     assert data["profile_username"] == "cozinha4e20"
     assert data["mode"] == "followers"
     assert data["status"] in ("pending", "running")
+    mock_get_task.assert_called_once_with("followers")
+
+
+@pytest.mark.asyncio
+async def test_create_job_following_dispatches_scrape_following(client):
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
+        mock_task.apply_async.return_value = MagicMock(id="celery-task-456")
+        mock_get_task.return_value = mock_task
+        resp = await client.post("/api/v1/jobs", json={
+            "profile_username": "cozinha4e20",
+            "mode": "following",
+        })
+
+    assert resp.status_code == 201
+    assert resp.json()["mode"] == "following"
+    mock_get_task.assert_called_once_with("following")
+
+
+@pytest.mark.asyncio
+async def test_get_task_for_mode_returns_correct_tasks():
+    from app.api.v1.jobs import _get_task_for_mode
+    from app.workers.tasks import scrape_followers, scrape_following
+
+    assert _get_task_for_mode("followers") is scrape_followers
+    assert _get_task_for_mode("following") is scrape_following
+    # commenters falls back to scrape_followers until its task is implemented
+    assert _get_task_for_mode("commenters") is scrape_followers
 
 
 @pytest.mark.asyncio
 async def test_create_job_strips_at_symbol(client):
-    with patch("app.api.v1.jobs.scrape_followers") as mock_task:
-        mock_task.apply_async.return_value = MagicMock(id="celery-task-456")
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
+        mock_task.apply_async.return_value = MagicMock(id="celery-task-789")
+        mock_get_task.return_value = mock_task
         resp = await client.post("/api/v1/jobs", json={
             "profile_username": "@cozinha4e20",
         })
@@ -50,7 +82,6 @@ async def test_requires_api_key(client):
     from httpx import ASGITransport, AsyncClient
 
     from app.main import app
-    # Request without API key
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as no_auth:

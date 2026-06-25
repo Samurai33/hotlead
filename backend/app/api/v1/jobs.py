@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.job import Job, JobStatus
+from app.models.job import Job, JobMode, JobStatus
 from app.schemas.job import JobCreate, JobListRead, JobRead
 
 router = APIRouter()
 scrape_followers = None
+scrape_following = None
 
 
 def _get_scrape_followers_task():
@@ -19,6 +20,22 @@ def _get_scrape_followers_task():
 
         scrape_followers = task
     return scrape_followers
+
+
+def _get_scrape_following_task():
+    global scrape_following
+    if scrape_following is None:
+        from app.workers.tasks import scrape_following as task
+
+        scrape_following = task
+    return scrape_following
+
+
+def _get_task_for_mode(mode: str):
+    """Return the Celery task matching the job mode."""
+    if mode == JobMode.following:
+        return _get_scrape_following_task()
+    return _get_scrape_followers_task()
 
 
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
@@ -32,8 +49,8 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(job)
 
-    # Enqueue Celery task
-    task = _get_scrape_followers_task().apply_async(
+    # Enqueue Celery task matching the requested mode.
+    task = _get_task_for_mode(job.mode).apply_async(
         args=[str(job.id), job.profile_username],
         queue="scraping",
     )
@@ -88,7 +105,7 @@ async def resume_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if job.status != JobStatus.paused:
         raise HTTPException(status_code=400, detail=f"Cannot resume job with status '{job.status}'")
 
-    task = _get_scrape_followers_task().apply_async(
+    task = _get_task_for_mode(job.mode).apply_async(
         args=[str(job.id), job.profile_username],
         queue="scraping",
     )
