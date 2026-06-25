@@ -1,3 +1,4 @@
+import asyncio
 import os
 import pytest
 import pytest_asyncio
@@ -7,12 +8,20 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from app.main import app
 from app.core.database import Base, get_db
 
-# Usa a mesma DB do docker ou uma de teste se definida
 TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://hotlead:91798a77327350340aeb63ab211a46e3@localhost:5432/hotlead"
 )
 TEST_API_KEY = os.getenv("API_KEY", "test-api-key-1234")
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Single event loop for the whole test session so session-scoped async fixtures
+    (engine) share the same loop as function-scoped tests."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -36,11 +45,6 @@ async def db(engine):
 async def client(db):
     def override_get_db():
         yield db
-
-    os.environ["API_KEY"] = TEST_API_KEY
-    os.environ["SECRET_KEY"] = "test-secret-key-for-ci"
-    os.environ["POSTGRES_PASSWORD"] = "test"
-    os.environ["DATABASE_URL"] = TEST_DB_URL
 
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(
