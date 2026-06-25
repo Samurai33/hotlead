@@ -1,7 +1,8 @@
-import uuid
 from enum import Enum
-from sqlalchemy import String, Integer, Text
+
+from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.models.base import UUIDBase
 
 

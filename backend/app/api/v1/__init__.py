@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from app.api.v1 import jobs, prospects, accounts
+
+from app.api.v1 import accounts, jobs, prospects
 
 router = APIRouter()
 router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])

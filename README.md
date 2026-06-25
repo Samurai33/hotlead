@@ -229,7 +229,7 @@ hotlead/
 ├── frontend/
 │   ├── Dockerfile
 │   ├── package.json
-│   ├── next.config.ts
+│   ├── next.config.mjs
 │   ├── tailwind.config.ts
 │   ├── tsconfig.json
 │   ├── components.json              # shadcn/ui config

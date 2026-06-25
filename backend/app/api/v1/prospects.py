@@ -2,10 +2,12 @@ import csv
 import io
 import json
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
 from app.core.database import get_db
 from app.models.job import Job
 from app.models.prospect import Prospect

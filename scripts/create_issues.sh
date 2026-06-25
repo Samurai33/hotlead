@@ -364,7 +364,7 @@ create \
 Configurar Next.js com App Router, Tailwind, shadcn/ui e o design system gerado pelo UI/UX Pro Max.
 
 ## Tarefas
-- [ ] \`next.config.ts\` com security headers
+- [ ] \`next.config.mjs\` com security headers
 - [ ] \`tailwind.config.ts\` com tokens do design system (dark navy, verde #22C55E, Fira Code)
 - [ ] \`app/globals.css\` com classes utilitárias
 - [ ] Instalar shadcn/ui: \`npx shadcn@latest init\`
