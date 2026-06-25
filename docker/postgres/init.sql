@@ -1,9 +1,7 @@
--- HotLead — PostgreSQL initialization
--- Runs once when the container is first created
+-- HotLead -- PostgreSQL init
+-- Runs once on first container creation
 
--- Enable UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";  -- trigram search for usernames
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Set timezone
 SET timezone = 'America/Sao_Paulo';
