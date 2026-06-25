@@ -1,11 +1,10 @@
 """
 Celery tasks for Instagram scraping.
-Each task processes followers in batches, checkpointing progress to DB.
+Processes followers in batches of 50, checkpointing after each batch.
+Supports pause/resume by checking job.status on every iteration.
 """
 import logging
-import uuid
 from celery import shared_task
-
 from app.scraper.client import RateLimitExceeded, AccountChallenged
 
 logger = logging.getLogger(__name__)
@@ -14,82 +13,83 @@ logger = logging.getLogger(__name__)
 @shared_task(
     bind=True,
     max_retries=3,
-    default_retry_delay=60,
     name="app.workers.tasks.scrape_followers",
 )
 def scrape_followers(self, job_id: str, profile_username: str) -> dict:
     """
-    Scrape followers of a given Instagram profile.
-    Runs synchronously (Celery workers are sync by default).
-    Uses synchronous DB helpers to avoid async complexity in Celery.
+    Main scraping task — runs synchronously in Celery worker.
+
+    1. Mark job 'running'
+    2. Pick available IG account
+    3. Iterate followers in batches of 50
+    4. Save batch, update counter, check if paused
+    5. Mark 'done', save session
     """
     from app.workers._sync_helpers import (
-        get_sync_db,
-        get_sync_redis,
-        get_job,
-        update_job_status,
-        save_prospect_batch,
-        get_account_sync,
-        mark_account_cooldown_sync,
+        get_sync_db, get_sync_redis, get_job, update_job_status,
+        save_prospect_batch, get_account_sync, mark_account_cooldown_sync,
+        save_session_sync,
     )
 
-    logger.info(f"[Job {job_id}] Starting scrape of @{profile_username}")
+    logger.info(f"[Job {job_id}] Starting: @{profile_username}")
 
     with get_sync_db() as db, get_sync_redis() as redis:
         job = get_job(db, job_id)
         if not job:
-            logger.error(f"[Job {job_id}] Job not found")
+            logger.error(f"[Job {job_id}] Not found")
             return {"status": "error", "detail": "Job not found"}
 
         update_job_status(db, job_id, "running")
-        account, client = get_account_sync(db, redis)
 
         try:
-            batch = []
+            account, client = get_account_sync(db, redis)
+        except RuntimeError as exc:
+            update_job_status(db, job_id, "error", error_message=str(exc))
+            return {"status": "error", "detail": str(exc)}
+
+        try:
+            batch: list[dict] = []
+
             for user_data in client.iter_followers(profile_username):
-                # Check if job was paused externally
-                current_job = get_job(db, job_id)
-                if current_job.status == "paused":
-                    logger.info(f"[Job {job_id}] Paused — stopping gracefully")
+                current = get_job(db, job_id)
+                if current and current.status == "paused":
+                    logger.info(f"[Job {job_id}] Paused gracefully")
+                    if batch:
+                        save_prospect_batch(db, job_id, batch)
+                        update_job_status(db, job_id, "paused", scraped_delta=len(batch))
                     break
 
                 batch.append(user_data)
 
-                # Save every 50 prospects
                 if len(batch) >= 50:
-                    saved = save_prospect_batch(db, job_id, batch)
+                    save_prospect_batch(db, job_id, batch)
                     update_job_status(db, job_id, "running", scraped_delta=len(batch))
-                    logger.info(f"[Job {job_id}] Saved batch of {saved}")
+                    logger.info(f"[Job {job_id}] Batch saved: {len(batch)}")
                     batch = []
 
-            # Save remaining
             if batch:
                 save_prospect_batch(db, job_id, batch)
                 update_job_status(db, job_id, "running", scraped_delta=len(batch))
 
-            # Mark done (unless paused)
-            final_job = get_job(db, job_id)
-            if final_job.status != "paused":
+            final = get_job(db, job_id)
+            if final and final.status != "paused":
                 update_job_status(db, job_id, "done")
+                logger.info(f"[Job {job_id}] Done")
 
-            # Persist updated session
-            from app.workers._sync_helpers import save_session_sync
             save_session_sync(db, account, client)
-
-            logger.info(f"[Job {job_id}] Completed")
-            return {"status": "done"}
+            return {"status": "done", "job_id": job_id}
 
         except RateLimitExceeded as exc:
             mark_account_cooldown_sync(db, redis, account)
-            logger.warning(f"[Job {job_id}] Rate limit — retrying: {exc}")
-            raise self.retry(exc=exc, countdown=120)
+            logger.warning(f"[Job {job_id}] Rate limit, retry 120s")
+            raise self.retry(exc=exc, countdown=120, max_retries=3)
 
         except AccountChallenged as exc:
             mark_account_cooldown_sync(db, redis, account)
-            logger.warning(f"[Job {job_id}] Account challenged — retrying: {exc}")
-            raise self.retry(exc=exc, countdown=300)
+            logger.warning(f"[Job {job_id}] Challenge, retry 300s")
+            raise self.retry(exc=exc, countdown=300, max_retries=2)
 
         except Exception as exc:
-            logger.exception(f"[Job {job_id}] Unexpected error: {exc}")
-            update_job_status(db, job_id, "error", error_message=str(exc))
+            logger.exception(f"[Job {job_id}] Error: {exc}")
+            update_job_status(db, job_id, "error", error_message=str(exc)[:500])
             raise
