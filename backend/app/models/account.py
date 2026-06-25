@@ -6,9 +6,9 @@ from app.models.base import UUIDBase
 
 
 class AccountStatus(str, Enum):
-    active = "active"
+    active   = "active"
     cooldown = "cooldown"
-    banned = "banned"
+    banned   = "banned"
 
 
 class Account(UUIDBase):
@@ -16,20 +16,18 @@ class Account(UUIDBase):
 
     username: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
 
-    # SECURITY: session JSON only — password is NEVER stored
+    # SECURITY: session JSON only -- password is NEVER stored
     session_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Optional proxy
+    # Optional proxy per account
     proxy_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    # Status tracking
-    status: Mapped[str] = mapped_column(String(20), default=AccountStatus.active, index=True)
+    # Status
+    status: Mapped[str] = mapped_column(
+        String(20), default=AccountStatus.active, index=True
+    )
 
-    # Rate limiting (tracked in Redis, mirrored here for UI)
+    # Rate limit tracking (source of truth is Redis, this mirrors for UI)
     requests_today: Mapped[int] = mapped_column(Integer, default=0)
-    last_used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    cooldown_until: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_used_at:   Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

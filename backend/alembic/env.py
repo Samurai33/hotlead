@@ -1,19 +1,18 @@
 import asyncio
 from logging.config import fileConfig
+
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
-# Import all models so Alembic can detect them
 from app.core.config import get_settings
 from app.core.database import Base
-from app.models import job, prospect, account  # noqa: F401
+from app.models import Job, Prospect, Account  # noqa: F401 - needed for autogenerate
 
-config = context.config
+config   = context.config
 settings = get_settings()
 
-# Override sqlalchemy.url with env var
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
@@ -23,9 +22,8 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
