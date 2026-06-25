@@ -3,10 +3,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.models.job import Job, JobStatus
+from app.models.job import Job, JobMode, JobStatus
 from app.schemas.job import JobCreate, JobRead, JobListRead
 
 router = APIRouter()
+
+
+def _get_task_for_mode(mode: str):
+    """Return the Celery task matching the job mode."""
+    from app.workers.tasks import scrape_followers, scrape_following
+    if mode == JobMode.following:
+        return scrape_following
+    return scrape_followers
 
 
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
@@ -20,9 +28,9 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(job)
 
-    # Enqueue Celery task
-    from app.workers.tasks import scrape_followers
-    task = scrape_followers.apply_async(
+    # Enqueue Celery task matching the requested mode
+    celery_task = _get_task_for_mode(job.mode)
+    task = celery_task.apply_async(
         args=[str(job.id), job.profile_username],
         queue="scraping",
     )
@@ -77,8 +85,8 @@ async def resume_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if job.status != JobStatus.paused:
         raise HTTPException(status_code=400, detail=f"Cannot resume job with status '{job.status}'")
 
-    from app.workers.tasks import scrape_followers
-    task = scrape_followers.apply_async(
+    celery_task = _get_task_for_mode(job.mode)
+    task = celery_task.apply_async(
         args=[str(job.id), job.profile_username],
         queue="scraping",
     )
