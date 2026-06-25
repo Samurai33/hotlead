@@ -4,10 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
+        env_file=".env", env_file_encoding="utf-8",
+        case_sensitive=False, extra="ignore",
     )
 
     # Database
@@ -23,7 +21,10 @@ class Settings(BaseSettings):
     secret_key: str
     api_key: str
 
-    # Scraper tuning
+    # CORS — tighten in production
+    cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Scraper
     celery_workers: int = 2
     ig_request_delay_min: float = 1.0
     ig_request_delay_max: float = 3.0
