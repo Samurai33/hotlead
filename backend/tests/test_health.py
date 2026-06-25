@@ -1,5 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 @pytest.mark.asyncio
@@ -24,7 +25,8 @@ async def test_health_ok(client):
 @pytest.mark.asyncio
 async def test_health_no_auth_required(client):
     """Health endpoint must work without API key (for Docker healthcheck)."""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -36,10 +38,12 @@ async def test_health_no_auth_required(client):
 @pytest.mark.asyncio
 async def test_protected_route_requires_api_key(client):
     """Protected routes must return 401 without API key."""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test",
+        follow_redirects=True,
     ) as no_auth:
-        resp = await no_auth.get("/api/v1/jobs")
+        resp = await no_auth.get("/api/v1/jobs/")
     assert resp.status_code in (401, 403)
