@@ -12,6 +12,23 @@ const MODES: { value: JobMode; label: string; description: string }[] = [
   { value: "commenters", label: "Comentadores",  description: "Extrai quem comentou em um post específico" },
 ];
 
+function isInstagramMediaUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname;
+    const parts = url.pathname.split("/").filter(Boolean);
+
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      (host === "instagram.com" || host.endsWith(".instagram.com")) &&
+      parts.length >= 2 &&
+      ["p", "reel", "tv"].includes(parts[0])
+    );
+  } catch {
+    return false;
+  }
+}
+
 export default function NewJobPage() {
   const router = useRouter();
   const [username, setUsername]   = useState("");
@@ -21,11 +38,17 @@ export default function NewJobPage() {
   const [error, setError]         = useState<string | null>(null);
 
   const isCommenters = mode === "commenters";
-  const isValid = username.trim() && (!isCommenters || postUrl.trim());
+  const postUrlIsValid = !isCommenters || isInstagramMediaUrl(postUrl);
+  const showPostUrlError = isCommenters && Boolean(postUrl.trim()) && !postUrlIsValid;
+  const isValid = Boolean(username.trim()) && postUrlIsValid;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!isValid) return;
+    if (!username.trim()) return;
+    if (!postUrlIsValid) {
+      setError("Informe a URL de um post, reel ou tv do Instagram.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -117,6 +140,11 @@ export default function NewJobPage() {
             <p className="text-xs text-text-muted mt-1.5">
               Cole a URL de um post público do Instagram
             </p>
+            {showPostUrlError && (
+              <p className="text-xs text-status-error mt-1.5">
+                Use uma URL do Instagram em /p/, /reel/ ou /tv/.
+              </p>
+            )}
           </div>
         )}
 
