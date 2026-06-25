@@ -8,7 +8,7 @@ import {
   formatDate, formatNumber, progressPct, STATUS_LABELS,
 } from "@/lib/utils";
 import {
-  ArrowLeft, Pause, Play, Trash2, Download, Users, Mail, Phone,
+  ArrowLeft, Pause, Play, Trash2, Download, Users, Mail, Phone, ExternalLink,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -152,6 +152,20 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Meta */}
       <div className="card text-xs text-text-muted space-y-1">
+        {job.mode === "commenters" && job.target_post_url && (
+          <div className="flex justify-between gap-4">
+            <span>Post</span>
+            <a
+              href={job.target_post_url}
+              target="_blank"
+              rel="noreferrer"
+              className="min-w-0 inline-flex items-center gap-1 font-mono text-brand hover:underline"
+            >
+              <span className="truncate">{job.target_post_url}</span>
+              <ExternalLink size={12} className="shrink-0" />
+            </a>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>ID</span>
           <span className="font-mono">{job.id}</span>

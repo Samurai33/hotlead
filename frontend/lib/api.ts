@@ -55,6 +55,7 @@ export interface Job {
   scraped_count: number;
   emails_found: number;
   phones_found: number;
+  target_post_url: string | null;
   celery_task_id: string | null;
   error_message: string | null;
   created_at: string;
