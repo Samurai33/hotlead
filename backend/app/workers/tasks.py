@@ -13,8 +13,12 @@ from app.scraper.client import AccountChallenged, RateLimitExceeded
 logger = logging.getLogger(__name__)
 
 
-def _run_scrape(self, job_id: str, profile_username: str, iterator_name: str) -> dict:
-    """Shared scraping loop used by all mode-specific tasks."""
+def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
+    """Shared scraping loop used by all mode-specific tasks.
+
+    target — profile_username for followers/following, post_url for commenters.
+    iterator_name — method name on IGClient to call with target as first arg.
+    """
     from app.workers._sync_helpers import (
         get_account_sync,
         get_job,
@@ -26,7 +30,7 @@ def _run_scrape(self, job_id: str, profile_username: str, iterator_name: str) ->
         update_job_status,
     )
 
-    logger.info(f"[Job {job_id}] Starting ({iterator_name}): @{profile_username}")
+    logger.info(f"[Job {job_id}] Starting ({iterator_name}): {target}")
 
     with get_sync_db() as db, get_sync_redis() as redis:
         job = get_job(db, job_id)
@@ -43,7 +47,7 @@ def _run_scrape(self, job_id: str, profile_username: str, iterator_name: str) ->
             return {"status": "error", "detail": str(exc)}
 
         try:
-            iterator: Generator = getattr(client, iterator_name)(profile_username)
+            iterator: Generator = getattr(client, iterator_name)(target)
             batch: list[dict] = []
 
             for user_data in iterator:
@@ -91,21 +95,19 @@ def _run_scrape(self, job_id: str, profile_username: str, iterator_name: str) ->
             raise
 
 
-@shared_task(
-    bind=True,
-    max_retries=3,
-    name="app.workers.tasks.scrape_followers",
-)
+@shared_task(bind=True, max_retries=3, name="app.workers.tasks.scrape_followers")
 def scrape_followers(self, job_id: str, profile_username: str) -> dict:
     """Scrape followers of a public Instagram profile."""
     return _run_scrape(self, job_id, profile_username, "iter_followers")
 
 
-@shared_task(
-    bind=True,
-    max_retries=3,
-    name="app.workers.tasks.scrape_following",
-)
+@shared_task(bind=True, max_retries=3, name="app.workers.tasks.scrape_following")
 def scrape_following(self, job_id: str, profile_username: str) -> dict:
     """Scrape accounts followed by a public Instagram profile."""
     return _run_scrape(self, job_id, profile_username, "iter_following")
+
+
+@shared_task(bind=True, max_retries=3, name="app.workers.tasks.scrape_commenters")
+def scrape_commenters(self, job_id: str, post_url: str) -> dict:
+    """Scrape unique commenters from a public Instagram post URL."""
+    return _run_scrape(self, job_id, post_url, "iter_commenters")
