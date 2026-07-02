@@ -8,9 +8,9 @@ _redis: Redis | None = None
 def _create_client(url: str) -> Redis:
     # fakeredis:// lets local dev run without a Redis server (dev dependency only)
     if url.startswith(("fakeredis://", "fakeredis+")):
-        import fakeredis.asyncio as fakeredis_async
+        import fakeredis
 
-        return fakeredis_async.FakeRedis(decode_responses=True)
+        return fakeredis.FakeAsyncRedis(decode_responses=True)
     return from_url(url, decode_responses=True)
 
 
