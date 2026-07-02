@@ -1,0 +1,21 @@
+name: hotlead
+
+# Local development only.
+#
+# Docker Compose auto-loads this file on a plain `docker compose up` (no -f
+# flags), so local runs get the api and frontend published on the host at
+# http://localhost:8000 and http://localhost:3000.
+#
+# Coolify deploys with explicit `-f docker-compose.yml -f docker-compose.prod.yml`,
+# which does NOT include this override — so production never binds host ports and
+# routes through the Coolify/Traefik proxy instead (see the `expose` blocks in
+# docker-compose.yml).
+
+services:
+  api:
+    ports:
+      - "8000:8000"
+
+  frontend:
+    ports:
+      - "3000:3000"
