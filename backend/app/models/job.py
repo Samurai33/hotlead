@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -6,13 +6,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import UUIDBase
 
 
-class JobMode(str, Enum):
+class JobMode(StrEnum):
     followers  = "followers"
     following  = "following"
     commenters = "commenters"
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     pending = "pending"
     running = "running"
     paused  = "paused"

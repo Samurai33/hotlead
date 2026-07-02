@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import UUIDBase
 
 
-class AccountStatus(str, Enum):
+class AccountStatus(StrEnum):
     active   = "active"
     cooldown = "cooldown"
     banned   = "banned"
