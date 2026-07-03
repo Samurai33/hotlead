@@ -79,7 +79,7 @@ export default function LoginPage() {
               </button>
             </div>
             <p className="text-xs text-text-muted mt-1.5">
-              Definida em <code className="font-mono bg-surface px-1 rounded">API_KEY</code> no seu <code className="font-mono bg-surface px-1 rounded">.env</code>
+              Definida em <code className="font-mono bg-surface px-1 rounded-sm">API_KEY</code> no seu <code className="font-mono bg-surface px-1 rounded-sm">.env</code>
             </p>
           </div>
 
