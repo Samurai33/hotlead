@@ -34,12 +34,32 @@ REDIS_URL=redis://redis:6379/0
 CORS_ORIGINS=["https://hotlead.seudominio.com"]
 ENVIRONMENT=production
 LOG_LEVEL=WARNING
-NEXT_PUBLIC_API_URL=https://hotlead.seudominio.com
+NEXT_PUBLIC_API_URL=https://api.hotlead.seudominio.com
 ```
 
-### 4. Habilitar HTTPS
+> ⚠️ `NEXT_PUBLIC_API_URL` é **build arg** do frontend: o Next.js embute o valor
+> no bundle durante o build. Mudou a variável → **Redeploy** (rebuild), não basta
+> restart. E preencha também a aba **Preview Deployments** — se ficar vazia lá,
+> todo deploy de PR sobe com o frontend apontando para URL vazia.
 
-No Coolify: **Domains → Add domain → `hotlead.seudominio.com` → Enable HTTPS (Let's Encrypt)**
+### 4. Domínios e HTTPS
+
+No Coolify, cada serviço roteado recebe seu próprio domínio — **sempre sem porta
+na URL** (o Traefik roteia para a porta interna declarada em `expose`):
+
+| Serviço | Domínio | Porta interna |
+|---------|---------|---------------|
+| `frontend` | `https://hotlead.seudominio.com` | 3000 |
+| `api` | `https://api.hotlead.seudominio.com` | 8000 |
+
+**Domains → Add domain → Enable HTTPS (Let's Encrypt)** em cada serviço.
+
+> ❌ `https://api.hotlead.seudominio.com:8000` — porta explícita na URL faz o
+> browser tentar conectar direto na 8000 (sem TLS do Traefik e sem forward no
+> roteador). Use `https://api.hotlead.seudominio.com`.
+
+Crie os registros DNS dos dois hosts (`hotlead` e `api.hotlead`) apontando para
+o mesmo destino.
 
 ### 5. Deploy e migration
 
@@ -75,3 +95,7 @@ Para deploy manual: Coolify UI → **Redeploy**.
 | 401 em todas as rotas | API_KEY não configurada | Verificar variável no Coolify |
 | DB connection refused | postgres não saudável | `docker compose ps` → verificar healthcheck |
 | Celery não pega jobs | Redis URL errada | Verificar `REDIS_URL` |
+| Serviço parado após "exceeded 10 restarts" | Crash-loop no startup (env faltando, migration não aplicada, healthcheck falhando) | Redeploy e acompanhar `docker logs <container> -f` nos primeiros segundos; conferir envs e `alembic current` |
+| API inacessível pelo domínio | Porta explícita na URL do domínio (`:8000`) | Remover a porta em Domains — Traefik roteia pela porta interna |
+| Preview de PR com frontend quebrado | `NEXT_PUBLIC_API_URL` vazia nas envs de Preview Deployments | Preencher a variável na aba Preview Deployments |
+| Limites de CPU/mem zerados na UI | Coolify lê apenas `docker-compose.yml` — overlay `docker-compose.prod.yml` não é aplicado | Manter `deploy.resources` no `docker-compose.yml` base |
