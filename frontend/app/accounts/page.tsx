@@ -62,7 +62,7 @@ function AccountCard({ account, onDelete }: { account: Account; onDelete: () => 
         </div>
 
         {account.proxy_url && (
-          <span className="text-xs text-text-muted bg-surface-elevated px-2 py-0.5 rounded font-mono">
+          <span className="text-xs text-text-muted bg-surface-elevated px-2 py-0.5 rounded-sm font-mono">
             proxy
           </span>
         )}
@@ -127,13 +127,13 @@ export default function AccountsPage() {
         {!isLoading && (!accounts || accounts.length === 0) && (
           <div className="card border-yellow-500/30 bg-yellow-500/5 mb-6">
             <div className="flex gap-3">
-              <AlertCircle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-yellow-400">Nenhuma conta no pool</p>
                 <p className="text-xs text-text-muted mt-1">
                   Sem contas ativas, o scraping não funciona. Adicione uma conta com:
                 </p>
-                <code className="block mt-2 text-xs bg-surface px-3 py-2 rounded font-mono text-text-secondary">
+                <code className="block mt-2 text-xs bg-surface px-3 py-2 rounded-sm font-mono text-text-secondary">
                   docker compose exec api python scripts/add_account.py seu_username
                 </code>
               </div>
