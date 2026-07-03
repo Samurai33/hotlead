@@ -10,9 +10,9 @@ psycopg2-binary==2.9.12
 alembic==1.18.5
 
 # ---- Cache / Queue -----------------------------------------------------------
-# redis pinned <6.5: celery 5.6/kombu caps redis-py below 6.5, so redis 8.x is
-# not installable while on Celery (see closed dependabot PR bumping redis to 8).
-redis==5.0.7
+# redis capped at <6.5 by celery 5.6/kombu, so redis 8.x is not installable
+# while on Celery. 6.4.0 is the newest the constraint allows.
+redis==6.4.0
 celery[redis]==5.6.3
 
 # ---- Config & Validation -----------------------------------------------------
