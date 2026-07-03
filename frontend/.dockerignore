@@ -1,0 +1,14 @@
+# Deps & build output are produced inside the image (npm ci + next build)
+node_modules/
+.next/
+out/
+.turbo/
+
+# Local dev config (NEXT_PUBLIC_API_URL is passed as a build ARG, not via .env)
+.env
+.env.*
+
+# Caches / logs
+*.tsbuildinfo
+npm-debug.log*
+.git/

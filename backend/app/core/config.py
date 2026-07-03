@@ -22,8 +22,11 @@ class Settings(BaseSettings):
     secret_key: str
     api_key: str
 
-    # CORS — tighten in production
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # CORS — tighten in production. Kept as a raw str (not list[str]) so a plain
+    # env value like `https://app.com` doesn't crash startup: pydantic-settings
+    # would otherwise demand strict JSON for a complex type. Parsed by
+    # `cors_origins_list`, which accepts JSON or a comma-separated list.
+    cors_origins: str = "http://localhost:3000"
 
     # Scraper
     celery_workers: int = 2
@@ -39,6 +42,20 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        raw = self.cors_origins.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            import json
+
+            try:
+                return [str(o) for o in json.loads(raw)]
+            except json.JSONDecodeError:
+                pass
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
 
 @lru_cache

@@ -1,0 +1,27 @@
+# Virtualenvs (never ship a host venv into the image)
+.ci-venv/
+.venv/
+venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Local dev config & databases (must never leak into a prod image)
+.env
+.env.*
+*.db
+
+# Tests are not needed at runtime (alembic/ IS kept for migrations)
+tests/
+
+# Misc
+*.log
+.git/

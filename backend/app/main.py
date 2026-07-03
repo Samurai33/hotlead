@@ -33,7 +33,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if not settings.is_production else None,
     lifespan=lifespan,
 )
-app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins_list,
     allow_credentials=True, allow_methods=["GET","POST","DELETE"],
     allow_headers=["X-API-Key","Content-Type"])
 
