@@ -28,6 +28,7 @@ services:
       start_period: 20s
     networks:
       - internal
+      - coolify   # Traefik lives here; api needs it so the proxy can route to it
     # Security: read-only root filesystem
     read_only: false
     tmpfs:
@@ -125,6 +126,7 @@ services:
     restart: unless-stopped
     networks:
       - internal
+      - coolify   # Traefik lives here; frontend needs it so the proxy can route to it
     deploy:
       resources:
         limits:
@@ -194,3 +196,8 @@ volumes:
 networks:
   internal:
     driver: bridge
+  # Coolify's Traefik proxy runs on this pre-existing network. api and frontend
+  # join it so the proxy can reach them to serve their domains. Postgres, redis,
+  # worker and beat stay off it (internal-only, no public domain).
+  coolify:
+    external: true

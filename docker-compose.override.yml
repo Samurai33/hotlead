@@ -19,3 +19,10 @@ services:
   frontend:
     ports:
       - "3000:3000"
+
+networks:
+  # The base file marks `coolify` as external (it exists on the Coolify server).
+  # Locally that network doesn't exist, so flip it to a throwaway bridge here
+  # to keep `docker compose up` working. Coolify ignores this override file.
+  coolify:
+    external: false
