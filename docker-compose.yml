@@ -150,7 +150,12 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - internal
+      # Unique alias: api/worker/beat reach the DB via `hotlead-postgres`, which
+      # can't collide with a bare `postgres` from another app on the shared
+      # coolify network (the api is attached to both networks).
+      internal:
+        aliases:
+          - hotlead-postgres
     deploy:
       resources:
         limits:
@@ -178,7 +183,10 @@ services:
       start_period: 5s
     restart: unless-stopped
     networks:
-      - internal
+      # Unique alias — see the postgres note above. Reached as `hotlead-redis`.
+      internal:
+        aliases:
+          - hotlead-redis
     deploy:
       resources:
         limits:
