@@ -62,6 +62,11 @@ services:
     restart: unless-stopped
     networks:
       - internal
+    # Shares the backend image, whose Dockerfile HEALTHCHECK curls :8000/health.
+    # This is a Celery worker with no HTTP server, so that check always fails —
+    # disable it (restart:unless-stopped still recovers a dead process).
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:
@@ -90,6 +95,10 @@ services:
     restart: unless-stopped
     networks:
       - internal
+    # Same inherited-HTTP-healthcheck problem as the worker — beat has no
+    # HTTP server. Disable it; restart:unless-stopped still recovers a crash.
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:

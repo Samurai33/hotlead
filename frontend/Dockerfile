@@ -34,6 +34,10 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3     CMD wget -qO- http://localhost:3000/ || exit 1
+# Use 127.0.0.1 (not localhost): in Alpine, localhost can resolve to ::1 (IPv6)
+# first, but the Next standalone server binds IPv4 0.0.0.0 only — wget to ::1
+# then gets "connection refused".
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/ || exit 1
 
 CMD ["node", "server.js"]
