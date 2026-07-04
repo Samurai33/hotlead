@@ -1,8 +1,11 @@
 name: Deploy
 
 # Triggers the Coolify deploy webhook after CI passes on main.
-# Setup: create the secret COOLIFY_WEBHOOK_URL in the repo settings
-# (Coolify → resource → Webhooks → copy the deploy URL).
+# Setup (repo secrets):
+#   COOLIFY_WEBHOOK_URL  — Coolify → resource → Webhooks → "Deploy Webhook"
+#                          (e.g. https://cloud.n3xus.dev/api/v1/deploy?uuid=...&force=false)
+#   COOLIFY_TOKEN        — Coolify → Keys & Tokens → API token (scoped to this team)
+# The Deploy Webhook is auth-protected, so the token is sent as a Bearer header.
 
 on:
   workflow_run:
@@ -16,13 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Call Coolify webhook
+      - name: Call Coolify deploy webhook
         env:
           WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
-          if [ -z "$WEBHOOK_URL" ]; then
-            echo "::warning::COOLIFY_WEBHOOK_URL secret not set — skipping deploy."
+          if [ -z "$WEBHOOK_URL" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::warning::COOLIFY_WEBHOOK_URL / COOLIFY_TOKEN not set — skipping deploy."
             exit 0
           fi
-          curl --fail --silent --show-error --request GET "$WEBHOOK_URL"
+          curl --fail --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$WEBHOOK_URL"
           echo "Deploy triggered."
