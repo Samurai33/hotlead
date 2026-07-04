@@ -76,7 +76,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: runner
-    command: celery -A app.workers.celery_app beat --loglevel=info
+    # Beat writes its schedule DB + pidfile to CWD by default, but /app is
+    # root-owned and the container runs as non-root (appuser) — so it can't
+    # create files there. Point both at /tmp (writable) to avoid a crash-loop.
+    command: >
+      celery -A app.workers.celery_app beat --loglevel=info
+      --schedule=/tmp/celerybeat-schedule
+      --pidfile=/tmp/celerybeat.pid
     env_file: .env
     depends_on:
       redis:
