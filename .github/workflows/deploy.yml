@@ -28,7 +28,9 @@ jobs:
             echo "::warning::COOLIFY_WEBHOOK_URL / COOLIFY_TOKEN not set — skipping deploy."
             exit 0
           fi
+          # Retry transient errors (e.g. a 502 while the tunnel/proxy is busy).
           curl --fail --silent --show-error \
+            --retry 5 --retry-delay 6 --retry-all-errors \
             --request GET \
             --header "Authorization: Bearer $COOLIFY_TOKEN" \
             "$WEBHOOK_URL"
