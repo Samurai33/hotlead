@@ -29,6 +29,10 @@ services:
     networks:
       - internal
       - coolify   # Traefik lives here; api needs it so the proxy can route to it
+    # The container sits on multiple networks; without this Traefik picks an
+    # arbitrary one and may route to an IP it can't reach (intermittent 000s).
+    labels:
+      - traefik.docker.network=coolify
     # Security: read-only root filesystem
     read_only: false
     tmpfs:
@@ -127,6 +131,9 @@ services:
     networks:
       - internal
       - coolify   # Traefik lives here; frontend needs it so the proxy can route to it
+    # Same as api: pin the network Traefik uses to reach this container.
+    labels:
+      - traefik.docker.network=coolify
     deploy:
       resources:
         limits:
