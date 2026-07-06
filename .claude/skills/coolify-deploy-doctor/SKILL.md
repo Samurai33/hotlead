@@ -49,7 +49,7 @@ Browser
 | Browser blocks API calls, "Mixed Content" | frontend built with an `http://` public URL | build args / runtime upgrade |
 | Container crash-loops right after deploy | app-level: DNS collision, file permissions, bad env | `docker logs --tail 50` |
 | Deploy webhook 401 | missing/wrong `Authorization: Bearer <api-token>` | token in CI secrets |
-| Deploy webhook 5xx only from CI, 200 from elsewhere | deploy churn in progress, or stale tunnel connector | wait for idle, then re-test; check for duplicate cloudflared containers |
+| Works from the LAN, 5xx from CI/outside | split-horizon DNS (root cause #10) or wrong ingress port (#9) | `nslookup <host>` vs `nslookup <host> 1.1.1.1` |
 
 ## Layer-by-layer diagnosis (read-only)
 
@@ -135,6 +135,16 @@ nslookup <public-domain>   # proxied CNAME to the tunnel expected
    `Authorization: Bearer <api-token>`** — an unauthenticated call returns 401.
    Store URL + token as CI secrets; add `curl --retry 5 --retry-all-errors` because
    the endpoint 502s while a deploy is churning.
+9. **cloudflared ingress must target the CONTAINER's internal port, not the
+   host-published one.** `docker ps` shows `0.0.0.0:8000->8080/tcp` → the tunnel
+   reaches that container as `:8080`; pointing the ingress at `:8000` yields a
+   permanent 502. Bites hardest on the Coolify dashboard container itself.
+10. **Split-horizon DNS invalidates local tests.** If the LAN router has a static
+   DNS entry for a public hostname (pointing straight at the server), every test
+   from inside the LAN silently bypasses Cloudflare + tunnel — "works from here,
+   502 from CI" for days. Compare `nslookup <host>` vs `nslookup <host> 1.1.1.1`,
+   and always verify public routes from a truly external vantage (a CI runner,
+   mobile data), never from the LAN.
 
 ## Environment specifics
 
