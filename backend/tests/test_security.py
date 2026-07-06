@@ -28,8 +28,7 @@ async def test_accounts_no_key():
 @pytest.mark.asyncio
 async def test_wrong_key_rejected():
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test",
-        headers={"X-API-Key": "wrong-key"}
+        transport=ASGITransport(app=app), base_url="http://test", headers={"X-API-Key": "wrong-key"}
     ) as c:
         resp = await c.get("/api/v1/jobs/")
     assert resp.status_code == 403

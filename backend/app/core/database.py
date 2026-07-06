@@ -16,7 +16,7 @@ if not settings.database_url.startswith("sqlite"):
         pool_size=10,
         max_overflow=20,
         pool_pre_ping=True,  # handle stale connections
-        pool_recycle=300,    # recycle connections every 5 min
+        pool_recycle=300,  # recycle connections every 5 min
     )
 
 engine = create_async_engine(settings.database_url, **_engine_kwargs)

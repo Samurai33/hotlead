@@ -7,31 +7,31 @@ from app.models.base import UUIDBase
 
 
 class JobMode(StrEnum):
-    followers  = "followers"
-    following  = "following"
+    followers = "followers"
+    following = "following"
     commenters = "commenters"
 
 
 class JobStatus(StrEnum):
     pending = "pending"
     running = "running"
-    paused  = "paused"
-    done    = "done"
-    error   = "error"
+    paused = "paused"
+    done = "done"
+    error = "error"
 
 
 class Job(UUIDBase):
     __tablename__ = "jobs"
 
     profile_username: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    mode:   Mapped[str] = mapped_column(String(20), default=JobMode.followers)
+    mode: Mapped[str] = mapped_column(String(20), default=JobMode.followers)
     status: Mapped[str] = mapped_column(String(20), default=JobStatus.pending, index=True)
 
     # Progress counters
-    total_count:   Mapped[int] = mapped_column(Integer, default=0)
+    total_count: Mapped[int] = mapped_column(Integer, default=0)
     scraped_count: Mapped[int] = mapped_column(Integer, default=0)
-    emails_found:  Mapped[int] = mapped_column(Integer, default=0)
-    phones_found:  Mapped[int] = mapped_column(Integer, default=0)
+    emails_found: Mapped[int] = mapped_column(Integer, default=0)
+    phones_found: Mapped[int] = mapped_column(Integer, default=0)
 
     # Required when mode=commenters — URL of the Instagram post to scrape
     target_post_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

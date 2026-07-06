@@ -2,6 +2,7 @@
 Instagram client wrapper — simulates Android IG app.
 Anti-ban: mandatory random delay, session-only auth, batch pagination.
 """
+
 import json
 import logging
 import random
@@ -154,34 +155,34 @@ class IGClient:
         bio = getattr(user, "biography", "") or ""
         website = getattr(user, "external_url", None)
         return {
-            "username":    user.username,
-            "full_name":   getattr(user, "full_name", None),
-            "ig_pk":       str(user.pk),
-            "biography":   bio,
-            "followers":   getattr(user, "follower_count", 0),
-            "following":   getattr(user, "following_count", 0),
+            "username": user.username,
+            "full_name": getattr(user, "full_name", None),
+            "ig_pk": str(user.pk),
+            "biography": bio,
+            "followers": getattr(user, "follower_count", 0),
+            "following": getattr(user, "following_count", 0),
             "is_business": getattr(user, "is_business", False),
-            "is_private":  getattr(user, "is_private", False),
+            "is_private": getattr(user, "is_private", False),
             "is_verified": getattr(user, "is_verified", False),
-            "email":       extract_email(bio),
-            "phone":       extract_phone(bio),
-            "website":     extract_website(bio, website),
+            "email": extract_email(bio),
+            "phone": extract_phone(bio),
+            "website": extract_website(bio, website),
         }
 
     @staticmethod
     def _normalize_short(user) -> dict:
         """Normalize a UserShort (from comments) — no bio/followers available."""
         return {
-            "username":    user.username,
-            "full_name":   getattr(user, "full_name", None),
-            "ig_pk":       str(user.pk),
-            "biography":   None,
-            "followers":   0,
-            "following":   0,
+            "username": user.username,
+            "full_name": getattr(user, "full_name", None),
+            "ig_pk": str(user.pk),
+            "biography": None,
+            "followers": 0,
+            "following": 0,
             "is_business": False,
-            "is_private":  getattr(user, "is_private", False),
+            "is_private": getattr(user, "is_private", False),
             "is_verified": getattr(user, "is_verified", False),
-            "email":       None,
-            "phone":       None,
-            "website":     None,
+            "email": None,
+            "phone": None,
+            "website": None,
         }

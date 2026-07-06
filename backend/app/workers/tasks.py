@@ -3,6 +3,7 @@ Celery tasks for Instagram scraping.
 Processes users in batches of 50, checkpointing after each batch.
 Supports pause/resume by checking job.status on every iteration.
 """
+
 import logging
 from collections.abc import Generator
 

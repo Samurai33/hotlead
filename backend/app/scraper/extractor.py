@@ -1,10 +1,22 @@
 """Extract contact data from Instagram bio text (publicly visible data only)."""
+
 import re
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
-_PHONE_RE = re.compile(r"(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9\s?\d{4}[\s\-]?\d{4}|\d{4}[\s\-]?\d{4})")
-_URL_RE   = re.compile(r"https?://[^\s\)\]\>\"\']+", re.IGNORECASE)
-_SKIP     = {"linktr.ee","linktree.com","instagram.com","wa.me","t.me","bio.link","beacons.ai","allmylinks.com"}
+_PHONE_RE = re.compile(
+    r"(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9\s?\d{4}[\s\-]?\d{4}|\d{4}[\s\-]?\d{4})"
+)
+_URL_RE = re.compile(r"https?://[^\s\)\]\>\"\']+", re.IGNORECASE)
+_SKIP = {
+    "linktr.ee",
+    "linktree.com",
+    "instagram.com",
+    "wa.me",
+    "t.me",
+    "bio.link",
+    "beacons.ai",
+    "allmylinks.com",
+}
 
 
 def extract_email(bio: str | None) -> str | None:

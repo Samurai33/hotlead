@@ -18,9 +18,7 @@ async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)
     session_json must be obtained via the add_account.py script (never sends password).
     """
     # Check for duplicates
-    existing = await db.execute(
-        select(Account).where(Account.username == payload.username)
-    )
+    existing = await db.execute(select(Account).where(Account.username == payload.username))
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=409,
@@ -42,9 +40,7 @@ async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)
 @router.get("/", response_model=list[AccountRead])
 async def list_accounts(db: AsyncSession = Depends(get_db)):
     """List all accounts in the pool with their current status."""
-    result = await db.execute(
-        select(Account).order_by(Account.created_at.desc())
-    )
+    result = await db.execute(select(Account).order_by(Account.created_at.desc()))
     return result.scalars().all()
 
 

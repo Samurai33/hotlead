@@ -48,29 +48,29 @@ class JobCreate(BaseModel):
 class JobRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    id:               uuid.UUID
+    id: uuid.UUID
     profile_username: str
-    mode:             str
-    status:           str
-    total_count:      int
-    scraped_count:    int
-    emails_found:     int
-    phones_found:     int
-    target_post_url:  str | None
-    celery_task_id:   str | None
-    error_message:    str | None
-    created_at:       datetime
-    updated_at:       datetime
+    mode: str
+    status: str
+    total_count: int
+    scraped_count: int
+    emails_found: int
+    phones_found: int
+    target_post_url: str | None
+    celery_task_id: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class JobListRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    id:               uuid.UUID
+    id: uuid.UUID
     profile_username: str
-    mode:             str
-    status:           str
-    scraped_count:    int
-    emails_found:     int
-    phones_found:     int
-    created_at:       datetime
+    mode: str
+    status: str
+    scraped_count: int
+    emails_found: int
+    phones_found: int
+    created_at: datetime

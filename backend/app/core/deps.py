@@ -10,4 +10,4 @@ from app.core.security import require_api_key
 
 DBSession = Annotated[AsyncSession, Depends(get_db)]
 RedisConn = Annotated[Redis, Depends(get_redis)]
-APIKey    = Annotated[str, Depends(require_api_key)]
+APIKey = Annotated[str, Depends(require_api_key)]

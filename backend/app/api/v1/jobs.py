@@ -53,7 +53,9 @@ def _get_task_for_mode(mode: str):
 def _get_task_args(job: Job) -> list[str]:
     if job.mode == JobMode.commenters:
         if not job.target_post_url:
-            raise HTTPException(status_code=400, detail="target_post_url is required for commenters jobs")
+            raise HTTPException(
+                status_code=400, detail="target_post_url is required for commenters jobs"
+            )
         return [str(job.id), job.target_post_url]
     return [str(job.id), job.profile_username]
 
@@ -85,9 +87,7 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
 @router.get("/", response_model=list[JobListRead])
 async def list_jobs(db: AsyncSession = Depends(get_db)):
     """List all jobs ordered by creation date."""
-    result = await db.execute(
-        select(Job).order_by(Job.created_at.desc()).limit(100)
-    )
+    result = await db.execute(select(Job).order_by(Job.created_at.desc()).limit(100))
     return result.scalars().all()
 
 
@@ -148,6 +148,7 @@ async def delete_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     # Revoke Celery task if running
     if job.celery_task_id:
         from app.workers.celery_app import celery_app
+
         celery_app.control.revoke(job.celery_task_id, terminate=True)
 
     await db.delete(job)

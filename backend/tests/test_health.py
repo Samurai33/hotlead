@@ -5,8 +5,10 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_health_ok(client):
-    with patch("app.main.AsyncSessionLocal") as mock_db,          patch("app.main.get_redis_client") as mock_redis:
-
+    with (
+        patch("app.main.AsyncSessionLocal") as mock_db,
+        patch("app.main.get_redis_client") as mock_redis,
+    ):
         mock_session = AsyncMock()
         mock_db.return_value.__aenter__.return_value = mock_session
         mock_session.execute = AsyncMock()
@@ -28,9 +30,8 @@ async def test_health_no_auth_required(client):
     from httpx import ASGITransport, AsyncClient
 
     from app.main import app
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as no_auth:
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as no_auth:
         resp = await no_auth.get("/health")
     assert resp.status_code == 200
 
@@ -41,8 +42,10 @@ async def test_protected_route_requires_api_key(client):
     from httpx import ASGITransport, AsyncClient
 
     from app.main import app
+
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test",
+        transport=ASGITransport(app=app),
+        base_url="http://test",
         follow_redirects=True,
     ) as no_auth:
         resp = await no_auth.get("/api/v1/jobs/")

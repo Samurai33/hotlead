@@ -9,10 +9,13 @@ async def test_create_job_followers_dispatches_scrape_followers(client):
         mock_task = MagicMock()
         mock_task.apply_async.return_value = MagicMock(id="celery-task-123")
         mock_get_task.return_value = mock_task
-        resp = await client.post("/api/v1/jobs", json={
-            "profile_username": "cozinha4e20",
-            "mode": "followers",
-        })
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={
+                "profile_username": "cozinha4e20",
+                "mode": "followers",
+            },
+        )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -28,10 +31,13 @@ async def test_create_job_following_dispatches_scrape_following(client):
         mock_task = MagicMock()
         mock_task.apply_async.return_value = MagicMock(id="celery-task-456")
         mock_get_task.return_value = mock_task
-        resp = await client.post("/api/v1/jobs", json={
-            "profile_username": "cozinha4e20",
-            "mode": "following",
-        })
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={
+                "profile_username": "cozinha4e20",
+                "mode": "following",
+            },
+        )
 
     assert resp.status_code == 201
     assert resp.json()["mode"] == "following"
@@ -44,11 +50,14 @@ async def test_create_job_commenters_dispatches_scrape_commenters(client):
         mock_task = MagicMock()
         mock_task.apply_async.return_value = MagicMock(id="celery-task-789")
         mock_get_task.return_value = mock_task
-        resp = await client.post("/api/v1/jobs", json={
-            "profile_username": "cozinha4e20",
-            "mode": "commenters",
-            "target_post_url": "https://www.instagram.com/p/ABC123/",
-        })
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={
+                "profile_username": "cozinha4e20",
+                "mode": "commenters",
+                "target_post_url": "https://www.instagram.com/p/ABC123/",
+            },
+        )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -81,9 +90,12 @@ async def test_create_job_strips_at_symbol(client):
         mock_task = MagicMock()
         mock_task.apply_async.return_value = MagicMock(id="celery-task-789")
         mock_get_task.return_value = mock_task
-        resp = await client.post("/api/v1/jobs", json={
-            "profile_username": "@cozinha4e20",
-        })
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={
+                "profile_username": "@cozinha4e20",
+            },
+        )
 
     assert resp.status_code == 201
     assert resp.json()["profile_username"] == "cozinha4e20"
@@ -92,6 +104,7 @@ async def test_create_job_strips_at_symbol(client):
 @pytest.mark.asyncio
 async def test_get_job_not_found(client):
     import uuid
+
     resp = await client.get(f"/api/v1/jobs/{uuid.uuid4()}")
     assert resp.status_code == 404
 
@@ -108,8 +121,7 @@ async def test_requires_api_key(client):
     from httpx import ASGITransport, AsyncClient
 
     from app.main import app
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as no_auth:
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as no_auth:
         resp = await no_auth.post("/api/v1/jobs/", json={"profile_username": "test"})
     assert resp.status_code in (401, 403)

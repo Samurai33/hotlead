@@ -2,6 +2,7 @@
 Synchronous DB and Redis helpers for Celery tasks.
 Celery workers are sync — this module wraps DB/Redis for use inside tasks.
 """
+
 import logging
 import uuid
 from collections.abc import Generator
@@ -19,11 +20,12 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Sync engine (psycopg2) — separate from FastAPI's async engine (asyncpg)
-_SYNC_DB_URL = settings.database_url.replace(
-    "postgresql+asyncpg://", "postgresql+psycopg2://"
-)
+_SYNC_DB_URL = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 _sync_engine = create_engine(
-    _SYNC_DB_URL, pool_size=5, max_overflow=10, pool_pre_ping=True,
+    _SYNC_DB_URL,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
 )
 SyncSession = sessionmaker(bind=_sync_engine, autocommit=False, autoflush=False)
 
@@ -52,6 +54,7 @@ def get_sync_redis():
 
 def get_job(db: Session, job_id: str):
     from app.models.job import Job
+
     result = db.execute(select(Job).where(Job.id == uuid.UUID(job_id)))
     return result.scalar_one_or_none()
 
@@ -64,6 +67,7 @@ def update_job_status(
     error_message: str | None = None,
 ) -> None:
     from app.models.job import Job
+
     vals = {"status": status, "updated_at": datetime.now(UTC)}
     if error_message is not None:
         vals["error_message"] = error_message
@@ -78,6 +82,7 @@ def update_job_status(
 
 def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
     from app.models.prospect import Prospect
+
     prospects = []
     emails = phones = 0
     for data in batch:
@@ -104,7 +109,9 @@ def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
     db.bulk_save_objects(prospects)
     if emails > 0 or phones > 0:
         db.execute(
-            text("UPDATE jobs SET emails_found=emails_found+:e, phones_found=phones_found+:p WHERE id=:id"),
+            text(
+                "UPDATE jobs SET emails_found=emails_found+:e, phones_found=phones_found+:p WHERE id=:id"
+            ),
             {"e": emails, "p": phones, "id": str(job_id)},
         )
     db.commit()
@@ -113,6 +120,7 @@ def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
 
 def get_account_sync(db: Session, redis_client) -> tuple:
     from app.models.account import Account, AccountStatus
+
     _RATE_KEY = "hotlead:ratelimit:{}"
     max_req = settings.ig_max_requests_per_hour
     result = db.execute(
@@ -141,10 +149,9 @@ def get_account_sync(db: Session, redis_client) -> tuple:
 
 def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
     from app.models.account import AccountStatus
+
     account.status = AccountStatus.cooldown
-    account.cooldown_until = datetime.now(UTC) + timedelta(
-        minutes=settings.ig_cooldown_minutes
-    )
+    account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
     db.commit()
     logger.warning(f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min")
 

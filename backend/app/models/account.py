@@ -8,9 +8,9 @@ from app.models.base import UUIDBase
 
 
 class AccountStatus(StrEnum):
-    active   = "active"
+    active = "active"
     cooldown = "cooldown"
-    banned   = "banned"
+    banned = "banned"
 
 
 class Account(UUIDBase):
@@ -25,11 +25,9 @@ class Account(UUIDBase):
     proxy_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Status
-    status: Mapped[str] = mapped_column(
-        String(20), default=AccountStatus.active, index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), default=AccountStatus.active, index=True)
 
     # Rate limit tracking (source of truth is Redis, this mirrors for UI)
     requests_today: Mapped[int] = mapped_column(Integer, default=0)
-    last_used_at:   Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
