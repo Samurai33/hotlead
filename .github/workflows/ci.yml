@@ -50,6 +50,19 @@ jobs:
       - name: Ruff lint
         run: ruff check app/ tests/
 
+      - name: Ruff format check
+        run: ruff format --check app/ tests/
+
+      - name: Migrations apply cleanly
+        env:
+          DATABASE_URL: postgresql+asyncpg://hotlead:ci_test_password@localhost:5432/hotlead
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-secret-key-for-testing-only
+          API_KEY: ci-api-key-for-testing-only
+          POSTGRES_PASSWORD: ci_test_password
+          ENVIRONMENT: development
+        run: alembic upgrade head
+
       - name: Tests
         env:
           DATABASE_URL: postgresql+asyncpg://hotlead:ci_test_password@localhost:5432/hotlead
@@ -79,6 +92,9 @@ jobs:
 
       - name: Install
         run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build check
         env:

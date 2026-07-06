@@ -1,0 +1,31 @@
+name: Uptime
+
+# External uptime monitor: probes the public endpoints every 15 minutes.
+# A failed run makes GitHub email the maintainer — no third-party service.
+# Retries soften transient blips (deploy restarts, tunnel reconnects) so an
+# alert means the site was actually down for ~2 minutes, not one hiccup.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe public endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - name: API /health
+        run: |
+          curl --fail --silent --show-error --max-time 15 \
+            --retry 4 --retry-delay 30 --retry-all-errors \
+            https://api-hotlead.n3xus.dev/health
+          echo "API OK"
+
+      - name: Frontend /
+        if: ${{ always() }}
+        run: |
+          curl --fail --silent --show-error --output /dev/null --max-time 15 \
+            --retry 4 --retry-delay 30 --retry-all-errors \
+            https://hotlead.n3xus.dev/
+          echo "Frontend OK"
