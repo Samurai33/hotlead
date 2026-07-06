@@ -17,13 +17,18 @@ docker compose logs -f api       # só a API
 **Backup** (automático via cron, manual quando quiser):
 
 ```bash
-./scripts/backup.sh              # gera backups/hotlead_YYYYMMDD_HHMMSS.sql.gz
+./scripts/backup.sh              # local/dev: gera backups/hotlead_YYYYMMDD_HHMMSS.sql.gz
 ```
 
-Cron sugerido na VM (diário às 03:00):
+Na VM do Coolify não há projeto compose no host — o script localiza o container
+pelo filtro de nome. Instalação (uma vez, como root):
 
-```
-0 3 * * * cd /caminho/hotlead && ./scripts/backup.sh >> backups/backup.log 2>&1
+```bash
+curl -fsSL https://raw.githubusercontent.com/Samurai33/hotlead/main/scripts/backup.sh \
+  -o /opt/hotlead-backup.sh && chmod +x /opt/hotlead-backup.sh
+mkdir -p /var/backups/hotlead
+# uuid do resource = prefixo dos containers (docker ps | grep postgres)
+crontab -l 2>/dev/null | { cat; echo '0 3 * * * BACKUP_DIR=/var/backups/hotlead CONTAINER_FILTER=postgres-<uuid> /opt/hotlead-backup.sh >> /var/backups/hotlead/backup.log 2>&1'; } | crontab -
 ```
 
 **Restore:**

@@ -128,9 +128,17 @@ hotlead/
 ├── .claude/
 │   ├── agents/        backend-dev, scraper-specialist, frontend-dev, devops
 │   ├── commands/      new-model, new-endpoint, add-account
-│   └── skills/        ui-ux-pro-max v2.6.2
+│   └── skills/        ui-ux-pro-max v2.6.2, coolify-deploy-doctor
 └── design-system/ hotlead MASTER + page overrides
 ```
+
+## Production (live since 2026-07)
+
+- **URLs:** https://hotlead.n3xus.dev (frontend) · https://api-hotlead.n3xus.dev (API)
+- **Path:** Cloudflare edge (TLS) → Cloudflare Tunnel (`cloudflared`) → Coolify's Traefik → containers. No router ports forwarded.
+- **Deploy:** push to `main` → CI (lint+tests+build) → `Deploy` workflow calls the Coolify webhook (Bearer token in repo secrets). One deploy at a time — never stack redeploys.
+- **Debugging production:** use the `coolify-deploy-doctor` skill — it has the symptom→layer map and every network/Traefik gotcha already solved. Don't re-derive.
+- Compose rules that keep prod working (details in the skill): services with a domain join the external `coolify` network **and** pin `traefik.docker.network=coolify`; postgres/redis stay internal-only with unique aliases (`hotlead-postgres`/`hotlead-redis`); `expose:` not `ports:`; public subdomains must be 1-level (`api-hotlead`, not `api.hotlead`).
 
 ## Decisions log
 
@@ -141,3 +149,6 @@ hotlead/
 | 2025-06 | PostgreSQL over MongoDB | ACID, async SQLAlchemy, relational data |
 | 2025-06 | Deploy on existing Coolify/Proxmox | No new VPS cost, full control |
 | 2025-06 | UI/UX Pro Max v2.6.2 | Design system generation for dashboard style |
+| 2026-07 | Cloudflare Tunnel instead of port-forward | Public IP :80 already serves another service; zero exposed ports |
+| 2026-07 | 1-level API subdomain (`api-hotlead`) | Free Universal SSL doesn't cover 2-level subdomains |
+| 2026-07 | CI-gated auto-deploy via Coolify webhook | Deploys land only after lint+tests+build pass on main |
