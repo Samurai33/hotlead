@@ -104,10 +104,14 @@ def main():
 
         import httpx
 
+        # Trailing slash: the route is POST /api/v1/accounts/ — without it FastAPI
+        # 307-redirects, and httpx does NOT follow redirects by default, so the
+        # POST body would be dropped. follow_redirects=True is belt-and-suspenders.
         resp = httpx.post(
-            f"{api_url}/api/v1/accounts",
+            f"{api_url}/api/v1/accounts/",
             headers={"X-API-Key": api_key, "Content-Type": "application/json"},
             json={"username": username, "session_json": session_json, "proxy_url": args.proxy},
+            follow_redirects=True,
         )
         resp.raise_for_status()
 
