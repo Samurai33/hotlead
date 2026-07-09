@@ -6,30 +6,49 @@ Usage:
     python scripts/add_account.py <username> [--proxy http://user:pass@host:port]
 
 Security:
-    - Password is read interactively (never passed as argument)
-    - Only session JSON is stored in the database (no password)
-    - Session JSON is saved immediately after login
+    - Password is read interactively (never passed as an argument, never stored)
+    - Only the session JSON is persisted (device fingerprint + cookies)
+    - The session is validated against Instagram before it is stored
+
+Anti-ban:
+    - ALWAYS log in through the SAME proxy the account will use at runtime.
+      The session/device is tied to the IP it was created from; logging in from
+      the server IP and then scraping through a proxy is a classic ban signal.
 """
+
 import argparse
 import getpass
 import json
+import os
 import sys
-from pathlib import Path
 
-# Add backend to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
+
+def _challenge_code_handler(username: str, choice) -> str:
+    """Resolve an SMS/email verification challenge inline.
+
+    instagrapi calls this when Instagram sends a code during login. Returning
+    the code here lets the login continue instead of dead-ending on
+    ChallengeRequired. `choice` is a ChallengeChoice (SMS / EMAIL).
+    """
+    label = getattr(choice, "name", str(choice))
+    return input(f"   Verification code ({label}) sent to @{username}: ").strip()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Add Instagram account to HotLead pool")
     parser.add_argument("username", help="Instagram username (without @)")
-    parser.add_argument("--proxy", default=None, help="Proxy URL (optional)")
+    parser.add_argument("--proxy", default=None, help="Proxy URL (STRONGLY recommended)")
     args = parser.parse_args()
 
     username = args.username.lstrip("@")
 
-    print(f"\n🔐 Adding @{username} to HotLead account pool")
-    print("   Password will NOT be stored — only session cookies.\n")
+    print(f"\n🔐 Adding @{username} to the HotLead account pool")
+    print("   The password is used once to create a session — it is NEVER stored.\n")
+
+    if not args.proxy:
+        print("⚠️  No --proxy given. The session will be created from THIS host's IP.")
+        print("   If the account scrapes through a proxy later, the IP mismatch is a")
+        print("   ban signal. Strongly consider re-running with --proxy.\n")
 
     password = getpass.getpass(f"Instagram password for @{username}: ")
 
@@ -40,6 +59,8 @@ def main():
         from instagrapi.exceptions import BadPassword, ChallengeRequired, TwoFactorRequired
 
         cl = Client()
+        # Resolve SMS/email code challenges inline instead of aborting.
+        cl.challenge_code_handler = _challenge_code_handler
         if args.proxy:
             cl.set_proxy(args.proxy)
             print(f"   Using proxy: {args.proxy}")
@@ -47,38 +68,41 @@ def main():
         try:
             cl.login(username, password)
         except TwoFactorRequired:
-            code = input("   Enter 2FA code: ").strip()
+            code = input("   Enter 2FA code (authenticator/SMS): ").strip()
             cl.login(username, password, verification_code=code)
         except BadPassword:
             print("❌ Wrong password. Please try again.")
             sys.exit(1)
         except ChallengeRequired:
-            print("⚠️  Instagram is requesting verification.")
-            print("   Please complete the challenge in the Instagram app, then retry.")
+            # Reached only when the challenge can't be solved by a code (e.g. it
+            # needs in-app approval). The code path is handled by the handler above.
+            print("⚠️  Instagram requires in-app verification for this login.")
+            print("   Open the Instagram app, approve the login attempt, then retry.")
             sys.exit(1)
 
+        # Best practice: confirm the fresh session actually works before storing.
+        # A session that can't read the timeline is dead on arrival.
+        cl.get_timeline_feed()
         session_json = json.dumps(cl.get_settings())
-        print("✅ Login successful!")
-
-        # Save via API
-        import httpx
-        import os
+        print("✅ Login successful and session validated!")
 
         api_url = os.getenv("API_URL", "http://localhost:8000")
         api_key = os.getenv("API_KEY")
 
         if not api_key:
-            # Fallback: print session for manual input
-            print("\n📋 Session JSON (copy this to add via API):")
-            print(f"   Username: @{username}")
-            print(f"   Session length: {len(session_json)} chars")
-            print("\n   Use the POST /api/v1/accounts endpoint with this session_json.")
+            # No API key in env → save the session to a gitignored file so it can
+            # be imported later via POST /api/v1/accounts. Filename matches the
+            # `*.session.json` rule in .gitignore so it never lands in git.
+            from pathlib import Path
 
-            # Save to file as backup
-            out = Path(f"session_{username}.json")
+            out = Path(f"{username}.session.json")
             out.write_text(session_json)
-            print(f"   Session saved to: {out} (delete after importing!)")
+            print("\n📋 API_KEY not set — session saved locally instead of POSTed:")
+            print(f"   File: {out}  ({len(session_json)} chars)")
+            print("   Import it with POST /api/v1/accounts, then DELETE the file.")
             return
+
+        import httpx
 
         resp = httpx.post(
             f"{api_url}/api/v1/accounts",
@@ -88,7 +112,7 @@ def main():
         resp.raise_for_status()
 
         account = resp.json()
-        print(f"\n🎉 Account added successfully!")
+        print("\n🎉 Account added successfully!")
         print(f"   ID: {account['id']}")
         print(f"   Username: @{account['username']}")
         print(f"   Status: {account['status']}")
