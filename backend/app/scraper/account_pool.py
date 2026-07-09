@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -16,8 +16,23 @@ settings = get_settings()
 _RATE_KEY = "hotlead:ratelimit:{account_id}"
 
 
+async def reactivate_cooldown_accounts(db: AsyncSession) -> None:
+    """Flip any cooldown account whose cooldown_until has passed back to active (audit H1)."""
+    await db.execute(
+        update(Account)
+        .where(
+            Account.status == AccountStatus.cooldown,
+            Account.cooldown_until.isnot(None),
+            Account.cooldown_until <= datetime.now(UTC),
+        )
+        .values(status=AccountStatus.active, cooldown_until=None)
+    )
+    await db.commit()
+
+
 async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account, IGClient]:
     """Return (Account, IGClient) for the least-recently-used active account."""
+    await reactivate_cooldown_accounts(db)
     result = await db.execute(
         select(Account)
         .where(Account.status == AccountStatus.active)

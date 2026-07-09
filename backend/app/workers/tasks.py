@@ -9,7 +9,7 @@ from collections.abc import Generator
 
 from celery import shared_task
 
-from app.scraper.client import AccountChallenged, RateLimitExceeded
+from app.scraper.client import AccountChallenged, RateLimitExceeded, SessionExpired
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
         get_sync_db,
         get_sync_redis,
         mark_account_cooldown_sync,
+        mark_account_session_expired_sync,
         save_prospect_batch,
         save_session_sync,
         update_job_status,
@@ -89,6 +90,14 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             mark_account_cooldown_sync(db, redis, account)
             logger.warning(f"[Job {job_id}] Challenge, retry 300s")
             raise self.retry(exc=exc, countdown=300, max_retries=2)
+
+        except SessionExpired:
+            # Session is dead — no timed recovery. Do NOT retry; flag for re-onboard.
+            mark_account_session_expired_sync(db, account)
+            msg = f"Session expired for @{account.username} — re-onboard via add_account.py"
+            logger.error(f"[Job {job_id}] {msg}")
+            update_job_status(db, job_id, "error", error_message=msg)
+            return {"status": "error", "detail": msg}
 
         except Exception as exc:
             logger.exception(f"[Job {job_id}] Error: {exc}")

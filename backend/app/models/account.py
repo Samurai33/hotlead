@@ -9,7 +9,8 @@ from app.models.base import UUIDBase
 
 class AccountStatus(StrEnum):
     active = "active"
-    cooldown = "cooldown"
+    cooldown = "cooldown"  # temporary (rate limit / challenge) — auto-reactivates when cooldown_until passes
+    session_expired = "session_expired"  # session dead (LoginRequired) — excluded until re-onboarded, NO auto-recovery
     banned = "banned"
 
 

@@ -33,6 +33,10 @@ class AccountChallenged(Exception):
     pass
 
 
+class SessionExpired(Exception):
+    pass
+
+
 class ProfileNotFound(Exception):
     pass
 
@@ -58,8 +62,10 @@ class IGClient:
             raise ProfileNotFound(f"@{username} not found or is private")
         except (RateLimitError, PleaseWaitFewMinutes):
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
-        except (ChallengeRequired, LoginRequired):
+        except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
+        except LoginRequired:
+            raise SessionExpired(f"Session expired for @{self.username}")
 
     def iter_followers(self, username: str, max_count: int = 0) -> Generator[dict, None, None]:
         """Yield follower dicts. max_count=0 = unlimited."""
@@ -76,8 +82,10 @@ class IGClient:
                 )
             except (RateLimitError, PleaseWaitFewMinutes):
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
-            except (ChallengeRequired, LoginRequired):
+            except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
+            except LoginRequired:
+                raise SessionExpired(f"Session expired for @{self.username}")
             for user in batch:
                 yield self._normalize(user)
                 scraped += 1
@@ -101,8 +109,10 @@ class IGClient:
                 )
             except (RateLimitError, PleaseWaitFewMinutes):
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
-            except (ChallengeRequired, LoginRequired):
+            except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
+            except LoginRequired:
+                raise SessionExpired(f"Session expired for @{self.username}")
             for user in batch:
                 yield self._normalize(user)
                 scraped += 1
@@ -118,8 +128,10 @@ class IGClient:
             media_pk = self._cl.media_pk_from_url(post_url)
         except (RateLimitError, PleaseWaitFewMinutes):
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
-        except (ChallengeRequired, LoginRequired):
+        except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
+        except LoginRequired:
+            raise SessionExpired(f"Session expired for @{self.username}")
         except Exception as exc:
             raise ProfileNotFound(f"Cannot resolve post URL: {exc}")
 
@@ -131,8 +143,10 @@ class IGClient:
             comments = self._cl.media_comments(media_pk, amount=fetch_amount)
         except (RateLimitError, PleaseWaitFewMinutes):
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
-        except (ChallengeRequired, LoginRequired):
+        except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
+        except LoginRequired:
+            raise SessionExpired(f"Session expired for @{self.username}")
 
         for comment in comments:
             pk = str(comment.user.pk)

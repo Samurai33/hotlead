@@ -118,8 +118,30 @@ def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
     return emails
 
 
+def reactivate_cooldown_accounts_sync(db: Session) -> None:
+    """Flip any cooldown account whose cooldown_until has passed back to active.
+
+    Anti-ban rule 4 stores a timed cooldown on rate-limit/challenge; this is the
+    lazy check that lets the pool recover instead of draining to zero (audit H1).
+    """
+    from app.models.account import Account, AccountStatus
+
+    db.execute(
+        update(Account)
+        .where(
+            Account.status == AccountStatus.cooldown,
+            Account.cooldown_until.isnot(None),
+            Account.cooldown_until <= datetime.now(UTC),
+        )
+        .values(status=AccountStatus.active, cooldown_until=None)
+    )
+    db.commit()
+
+
 def get_account_sync(db: Session, redis_client) -> tuple:
     from app.models.account import Account, AccountStatus
+
+    reactivate_cooldown_accounts_sync(db)
 
     _RATE_KEY = "hotlead:ratelimit:{}"
     max_req = settings.ig_max_requests_per_hour
@@ -154,6 +176,16 @@ def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
     account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
     db.commit()
     logger.warning(f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min")
+
+
+def mark_account_session_expired_sync(db: Session, account) -> None:
+    """Session is dead (LoginRequired) — no timed recovery. Operator must re-onboard."""
+    from app.models.account import AccountStatus
+
+    account.status = AccountStatus.session_expired
+    account.cooldown_until = None
+    db.commit()
+    logger.error(f"[{account.username}] Session expired — re-onboard via add_account.py")
 
 
 def save_session_sync(db: Session, account, client: IGClient) -> None:

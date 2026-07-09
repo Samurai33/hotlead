@@ -134,7 +134,7 @@ export const prospectsApi = {
 
 // ─── Accounts ─────────────────────────────────────────────────
 
-export type AccountStatus = "active" | "cooldown" | "banned";
+export type AccountStatus = "active" | "cooldown" | "session_expired" | "banned";
 
 export interface Account {
   id: string;

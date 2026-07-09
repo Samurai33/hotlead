@@ -8,9 +8,10 @@ import { ArrowLeft, Trash2, RefreshCw, AlertCircle, CheckCircle, Clock } from "l
 import { useState } from "react";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle }> = {
-  active:   { label: "Ativo",     color: "text-green-400",  icon: CheckCircle },
-  cooldown: { label: "Cooldown",  color: "text-yellow-400", icon: Clock },
-  banned:   { label: "Banido",    color: "text-red-400",    icon: AlertCircle },
+  active:          { label: "Ativo",             color: "text-green-400",  icon: CheckCircle },
+  cooldown:        { label: "Cooldown",          color: "text-yellow-400", icon: Clock },
+  session_expired: { label: "Sessão expirada",   color: "text-orange-400", icon: AlertCircle },
+  banned:          { label: "Banido",            color: "text-red-400",    icon: AlertCircle },
 };
 
 function AccountCard({ account, onDelete }: { account: Account; onDelete: () => void }) {
