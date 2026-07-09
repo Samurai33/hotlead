@@ -7,8 +7,8 @@
 Extract followers, collect public contact data from bios, and export ready-to-use prospect lists for outreach campaigns.
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
@@ -31,6 +31,8 @@ Extract followers, collect public contact data from bios, and export ready-to-us
 - [API Reference](#-api-reference)
 - [Development](#-development)
 - [Deployment](#-deployment)
+- [Operations](#-operations)
+- [CI/CD](#-cicd)
 - [Contributing](#-contributing)
 
 ---
@@ -40,6 +42,12 @@ Extract followers, collect public contact data from bios, and export ready-to-us
 HotLead is a self-hosted web application that extracts public contact data from Instagram follower lists. Given any public Instagram profile, it crawls followers and collects publicly available information (emails, phones, websites) from their bios — producing clean prospect lists for email marketing campaigns.
 
 > **Personal use only.** This tool is designed for self-hosted, internal use. Rate limiting and anti-ban measures are built in to protect your Instagram accounts.
+
+### Live in production (since 2026-07)
+
+- **Frontend:** https://hotlead.n3xus.dev
+- **API:** https://api-hotlead.n3xus.dev/health
+- **How it's served:** Cloudflare edge (TLS) → Cloudflare Tunnel (`cloudflared`) → Coolify's Traefik → containers. No router ports forwarded. See [Deployment](#-deployment) and [Operations](#-operations).
 
 ### How it works
 
@@ -103,8 +111,8 @@ HotLead is a self-hosted web application that extracts public contact data from 
 | **Job Queue** | Celery 5 · Redis broker | Pause/resume jobs, multiple workers, retries |
 | **Database** | PostgreSQL 16 · SQLAlchemy 2 async · Alembic | ACID, async queries, schema migrations |
 | **Cache** | Redis 7 | Job queue + per-account rate limit counters |
-| **Frontend** | Next.js 14 App Router · TypeScript · shadcn/ui | Real-time polling, type-safe, accessible UI |
-| **Deploy** | Docker Compose · Coolify · Proxmox | Self-hosted on existing homelab infra |
+| **Frontend** | Next.js 15 App Router · TypeScript · Tailwind v4 | Real-time polling, type-safe UI |
+| **Deploy** | Docker Compose · Coolify · Proxmox · Cloudflare Tunnel | Self-hosted on existing homelab infra, zero exposed ports |
 
 ---
 
@@ -156,10 +164,10 @@ HotLead is built **security by design**. Every layer has explicit security contr
 - [ ] Generate strong `SECRET_KEY`: `openssl rand -hex 32`
 - [ ] Generate strong `API_KEY`: `openssl rand -hex 32`
 - [ ] Never commit `.env` (it's in `.gitignore`)
-- [ ] Run `docker compose` behind a reverse proxy (Nginx/Traefik) with TLS
-- [ ] Restrict network access — expose only ports 80/443 to internet
+- [ ] Serve behind the reverse proxy — in production, TLS terminates at the **Cloudflare edge**, tunneled to Traefik (no ports forwarded on the router)
+- [ ] Keep Postgres/Redis internal-only (never `ports:` in production compose)
 - [ ] Rotate Instagram session JSON regularly
-- [ ] Enable Coolify's built-in HTTPS before exposing to internet
+- [ ] Use a dedicated residential/mobile proxy per Instagram account
 
 ### Environment Secrets
 
@@ -218,13 +226,15 @@ hotlead/
 │       │   ├── prospect.py          # ProspectRead + filters
 │       │   └── account.py           # AccountCreate / AccountRead
 │       ├── scraper/
-│       │   ├── client.py            # instagrapi wrapper (IGClient)
-│       │   ├── account_pool.py      # Account rotation logic
-│       │   ├── extractor.py         # email/phone/website from bio
-│       │   └── parser.py            # UserShort → Prospect
+│       │   ├── client.py            # instagrapi wrapper (IGClient) + bio extraction
+│       │   ├── account_pool.py      # Account rotation logic (async)
+│       │   └── extractor.py         # email/phone/website from bio
 │       └── workers/
 │           ├── celery_app.py        # Celery instance + config
-│           └── tasks.py             # scrape_followers, scrape_following
+│           ├── tasks.py             # scrape_followers / following / commenters
+│           └── _sync_helpers.py     # sync DB + pool helpers used inside tasks
+│   └── scripts/
+│       └── add_account.py           # interactive IG login → session-only onboarding
 │
 ├── frontend/
 │   ├── Dockerfile
@@ -232,45 +242,24 @@ hotlead/
 │   ├── next.config.mjs
 │   ├── tailwind.config.ts
 │   ├── tsconfig.json
-│   ├── components.json              # shadcn/ui config
 │   ├── app/
-│   │   ├── layout.tsx               # Root layout
-│   │   ├── page.tsx                 # Dashboard (job list)
-│   │   ├── (auth)/
-│   │   │   └── login/page.tsx       # API key entry
+│   │   ├── layout.tsx               # Root layout + AuthGuard
+│   │   ├── page.tsx                 # Dashboard (job list + stats)
+│   │   ├── (auth)/login/page.tsx    # API key entry
 │   │   ├── jobs/
 │   │   │   ├── new/page.tsx         # Create job form
 │   │   │   └── [id]/
 │   │   │       ├── page.tsx         # Job detail + live progress
-│   │   │       └── prospects/
-│   │   │           └── page.tsx     # Prospect table + export
-│   │   └── accounts/
-│   │       └── page.tsx             # Account pool management
+│   │   │       └── prospects/page.tsx  # Prospect table + export
+│   │   └── accounts/page.tsx        # Account pool (read/delete)
 │   ├── components/
-│   │   ├── ui/                      # shadcn/ui primitives (auto-generated)
-│   │   ├── jobs/
-│   │   │   ├── JobCard.tsx
-│   │   │   ├── JobProgress.tsx
-│   │   │   └── CreateJobForm.tsx
-│   │   ├── prospects/
-│   │   │   ├── ProspectsTable.tsx
-│   │   │   └── ExportButton.tsx
-│   │   ├── accounts/
-│   │   │   ├── AccountCard.tsx
-│   │   │   └── AddAccountForm.tsx
-│   │   └── shared/
-│   │       ├── Header.tsx
-│   │       ├── Sidebar.tsx
-│   │       └── StatusBadge.tsx
+│   │   └── shared/AuthGuard.tsx     # client-side API-key guard
 │   ├── hooks/
-│   │   ├── use-job.ts               # SWR polling for job status
-│   │   ├── use-prospects.ts
-│   │   └── use-accounts.ts
-│   ├── lib/
-│   │   ├── api.ts                   # Typed fetch wrapper
-│   │   └── utils.ts                 # cn() + formatters
-│   └── types/
-│       └── api.ts                   # Types from OpenAPI schema
+│   │   └── use-job.ts               # SWR polling: useJob + useJobs
+│   └── lib/
+│       ├── api.ts                   # typed fetch wrapper (http→https upgrade)
+│       ├── auth.ts                  # API-key localStorage helpers
+│       └── utils.ts                 # formatters + status labels
 │
 ├── .claude/
 │   ├── agents/
@@ -283,7 +272,8 @@ hotlead/
 │   │   ├── new-endpoint.md
 │   │   └── add-account.md
 │   └── skills/
-│       └── ui-ux-pro-max/           # UI/UX Pro Max v2.6.2
+│       ├── ui-ux-pro-max/           # UI/UX Pro Max v2.6.2
+│       └── coolify-deploy-doctor/   # production deploy debugging runbook
 │
 ├── design-system/
 │   └── hotlead/
@@ -294,10 +284,16 @@ hotlead/
 │           ├── prospects.md
 │           └── accounts.md
 │
-└── docs/
-    ├── quick-reference.md
-    ├── api.md                       # API documentation
-    └── deployment.md                # Production deploy guide
+├── docs/
+│   ├── PRODUCTION_ROADMAP.md        # phased go-live checklist (Phases 1–4 done)
+│   ├── deployment.md                # Coolify + Cloudflare Tunnel deploy guide
+│   └── runbook.md                   # day-2 ops: backup, migrations, incidents
+├── scripts/
+│   └── backup.sh                    # pg_dump + retention (host cron on the VM)
+└── .github/workflows/
+    ├── ci.yml                       # lint + format + migrations + tests + build
+    ├── deploy.yml                   # CI-gated Coolify deploy webhook
+    └── uptime.yml                   # 15-min external health probe
 ```
 
 ---
@@ -349,8 +345,10 @@ docker compose exec api alembic upgrade head
 ### 5. Add your first Instagram account
 
 ```bash
-docker compose exec api python scripts/add_account.py <your_ig_username>
-# Enter password when prompted (stored as session only, never as plaintext)
+docker compose exec -it api python scripts/add_account.py <your_ig_username> --proxy http://user:pass@host:port
+# Password is prompted once via getpass — only the session JSON is stored, never the password.
+# SMS/email verification codes are prompted inline. Always pass --proxy: the session is tied
+# to the login IP, so onboard through the same proxy the account will scrape from.
 ```
 
 ### 6. Open the dashboard
@@ -384,8 +382,10 @@ All configuration is via environment variables. **Never hardcode secrets.**
 | `POSTGRES_DB` | Database name | `hotlead` |
 | `DATABASE_URL` | Full async DB URL | `postgresql+asyncpg://...` |
 | `REDIS_URL` | Redis connection | `redis://redis:6379/0` |
-| `SECRET_KEY` | App secret (JWT/signing) | *(generate with openssl)* |
-| `API_KEY` | Frontend→Backend auth key | *(generate with openssl)* |
+| `SECRET_KEY` | App signing secret | *(generate with openssl)* |
+| `API_KEY` | Frontend→Backend auth key (`X-API-Key`) | *(generate with openssl)* |
+| `CORS_ORIGINS` | Allowed frontend origin(s), JSON or CSV | `https://hotlead.n3xus.dev` |
+| `ENVIRONMENT` | `development` / `production` (disables `/docs` in prod) | `production` |
 
 ### Optional
 
@@ -397,7 +397,7 @@ All configuration is via environment variables. **Never hardcode secrets.**
 | `IG_MAX_REQUESTS_PER_HOUR` | `200` | Max requests per account per hour |
 | `IG_COOLDOWN_MINUTES` | `30` | Minutes to pause a challenged account |
 | `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` |
-| `NEXT_PUBLIC_API_URL` | `http://api:8000` | Backend URL (internal docker network) |
+| `NEXT_PUBLIC_API_URL` | — | **Public** API URL, baked into the browser bundle at build time (e.g. `https://api-hotlead.n3xus.dev`). NOT an internal docker host. |
 
 ### Full `.env.example`
 
@@ -414,6 +414,8 @@ REDIS_URL=redis://redis:6379/0
 # ─── Application ──────────────────────────────────────
 SECRET_KEY=CHANGE_ME_generate_with_openssl_rand_hex_32
 API_KEY=CHANGE_ME_generate_with_openssl_rand_hex_32
+CORS_ORIGINS=https://hotlead.n3xus.dev
+ENVIRONMENT=production
 
 # ─── Scraper tuning ───────────────────────────────────
 CELERY_WORKERS=2
@@ -422,12 +424,15 @@ IG_REQUEST_DELAY_MAX=3.0
 IG_MAX_REQUESTS_PER_HOUR=200
 IG_COOLDOWN_MINUTES=30
 
-# ─── Frontend ─────────────────────────────────────────
-NEXT_PUBLIC_API_URL=http://api:8000
+# ─── Frontend (build-time, baked into the browser bundle) ──
+# Must be the PUBLIC https URL of the API, reachable from the browser.
+NEXT_PUBLIC_API_URL=https://api-hotlead.n3xus.dev
 
 # ─── Logging ──────────────────────────────────────────
 LOG_LEVEL=INFO
 ```
+
+> This block mirrors [`.env.example`](.env.example) — that file is the source of truth; keep changes there.
 
 ---
 
@@ -437,11 +442,16 @@ Interactive docs available at `http://localhost:8000/docs` (Swagger UI).
 
 ### Authentication
 
-All endpoints require:
+All `/api/v1/*` endpoints require the header (validated with `secrets.compare_digest`):
 
 ```http
 X-API-Key: your-api-key
 ```
+
+> **Trailing slashes:** collection routes are registered at `/` — the real paths are
+> `/api/v1/jobs/` and `/api/v1/accounts/`. Requests to the slashless form get a **307**
+> redirect. Browsers/`follow_redirects` clients handle it, but a redirect can drop the
+> `X-API-Key` header on some clients — call the slashed URL directly to be safe.
 
 ### Jobs
 
@@ -552,18 +562,29 @@ npm run lint          # ESLint
 npm run type-check    # tsc --noEmit
 ```
 
+> **CI gates** (`.github/workflows/ci.yml`): `ruff check`, `ruff format --check`,
+> `alembic upgrade head`, `pytest`, `eslint`, `next build`, `tsc --noEmit`.
+> `mypy` is available locally but is **not** a CI gate.
+
 ---
 
 ## 🚢 Deployment
 
-### Coolify (recommended for homelab)
+### Coolify + Cloudflare Tunnel (production)
 
-1. In Coolify: **New Resource → Docker Compose**
-2. Connect GitHub repo `Samurai33/hotlead`
-3. Set branch: `main`
-4. Add all environment variables from `.env.example` with real values
-5. Enable **HTTPS** (Coolify handles Let's Encrypt)
-6. Deploy
+The live deployment runs on Coolify (Docker Compose buildpack) on a Proxmox VM, fronted by a Cloudflare Tunnel — **no router ports are forwarded**.
+
+1. In Coolify: **New Resource → Docker Compose**, connect `Samurai33/hotlead`, branch `main`. Coolify deploys from `docker-compose.yml` only (it ignores the override/prod overlays).
+2. Add every variable from `.env.example` as a Coolify secret (real values).
+3. Give `api` and `frontend` their public domains as **http** URLs — Cloudflare terminates TLS at the edge, so an https domain here would loop the tunnel. Use **1-level** subdomains (`api-hotlead`, not `api.hotlead`): free Universal SSL doesn't cover 2-level.
+4. A `cloudflared` container routes `hotlead.n3xus.dev` and `api-hotlead.n3xus.dev` → `http://coolify-proxy:80` (Traefik). The deploy webhook (`cloud.n3xus.dev/api/v1/deploy`) targets the Coolify container's **internal** port `8080` (not the host-published `8000`).
+5. Deploy — `GET /health` should return 200 via https.
+
+**Compose invariants that keep prod working** (details in the `coolify-deploy-doctor` skill):
+- services with a domain join the external `coolify` network **and** pin `traefik.docker.network=coolify` — otherwise Traefik may route to an unreachable IP → intermittent timeouts;
+- `postgres`/`redis` stay internal-only with unique aliases (`hotlead-postgres` / `hotlead-redis`) to avoid colliding with other apps' bare names on the shared `coolify` network;
+- use `expose:` not `ports:` (Coolify already owns :8000);
+- celery `beat` writes its schedule to `/tmp` (the non-root container can't write `/app`).
 
 ### Manual Docker Compose
 
@@ -578,17 +599,33 @@ docker compose exec api alembic upgrade head
 docker compose ps
 ```
 
-### Network recommendation (homelab)
+### CI-gated auto-deploy
 
-For Proxmox + MikroTik setup, assign HotLead its own VLAN:
+Push to `main` → **CI** (lint + format + migrations + tests + build) → the **Deploy** workflow (`workflow_run`, only on CI success) calls the Coolify deploy webhook with a Bearer token. One deploy at a time — never stack redeploys.
 
-```
-VLAN 160 → 192.168.160.0/30
-  .1 = MikroTik gateway
-  .2 = HotLead VM/container
-```
+### Why a tunnel instead of port-forwarding?
 
-Expose only ports 80/443 via Coolify's reverse proxy. Redis and PostgreSQL stay internal to the Docker network — never exposed to the host.
+The homelab's single public IP already serves another service on :80, and exposing the Coolify dashboard directly is undesirable. The Cloudflare Tunnel gives public HTTPS with **zero forwarded ports**; only the `^/api/v1/deploy` path of the dashboard is reachable externally (everything else → 404), so the Coolify UI stays private.
+
+---
+
+## 🔧 Operations
+
+Day-2 operations live in [`docs/runbook.md`](docs/runbook.md). Highlights:
+
+- **Backup** — `scripts/backup.sh` runs `pg_dump` with retention, installed as a host cron on the VM (daily 03:00). Restore steps + the "test your restore" reminder are in the runbook.
+- **Uptime** — `.github/workflows/uptime.yml` probes both public endpoints every 15 min; a failed run emails the maintainer (no third-party service).
+- **Debugging a bad deploy** — use the **`coolify-deploy-doctor`** skill: it has the symptom→layer map and every tunnel / Traefik / DNS gotcha already solved. Don't re-derive.
+
+---
+
+## ⚙️ CI/CD
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `ci.yml` | push / PR to `main` | Backend: `ruff check` · `ruff format --check` · `alembic upgrade head` · `pytest` (against live PG + Redis). Frontend: `eslint` · `next build` · `tsc --noEmit`. |
+| `deploy.yml` | CI success on `main` | Calls the Coolify deploy webhook (Bearer token), retries transient errors. |
+| `uptime.yml` | every 15 min | `curl --fail` on the API `/health` and the frontend. |
 
 ---
 

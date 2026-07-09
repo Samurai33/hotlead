@@ -9,7 +9,9 @@ from app.main import app
 
 TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://hotlead:91798a77327350340aeb63ab211a46e3@localhost:5432/hotlead",
+    # Dummy local default ONLY — CI injects TEST_DATABASE_URL. Never hardcode a
+    # real credential here (Security rule 6: secrets via env vars only).
+    "postgresql+asyncpg://hotlead:hotlead@localhost:5432/hotlead",
 )
 TEST_API_KEY = os.getenv("API_KEY", "test-api-key-1234")
 

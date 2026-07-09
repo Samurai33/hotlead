@@ -18,7 +18,7 @@ from each follower's bio — producing clean prospect lists for outreach campaig
 | Job queue | Celery 5 · Redis broker |
 | Database | PostgreSQL 16 · SQLAlchemy 2 async · Alembic |
 | Cache | Redis 7 |
-| Frontend | Next.js 14 App Router · TypeScript · shadcn/ui · Tailwind |
+| Frontend | Next.js 15 App Router · TypeScript · Tailwind v4 (Radix deps present but unused) |
 | Deploy | Docker Compose · Coolify · Proxmox homelab |
 
 ## Architecture
@@ -54,11 +54,18 @@ Redis ↔ Celery Workers
 4. `ChallengeRequired` → mark account cooldown 30min
 5. Never call `cl.login()` if session_json exists
 
+> **Known code↔spec gaps (see [docs/AUDIT.md](docs/AUDIT.md), 2026-07):** the Redis
+> counter increments per account *checkout*, not per IG request, so rule 2's 180/hr cap
+> isn't enforced at request granularity; and **cooldown accounts are never reactivated**
+> (nothing reads `cooldown_until`), so the pool drains over time. `LoginRequired` (expired
+> session) is mislabeled as `ChallengeRequired`. Fix before real production volume.
+
 ## Data models
 
 ### Job
 ```
 id, profile_username, mode (followers|following|commenters),
+target_post_url (required when mode=commenters),
 status (pending|running|paused|done|error),
 total_count, scraped_count, emails_found, phones_found,
 celery_task_id, error_message, created_at, updated_at
@@ -101,6 +108,13 @@ DELETE /api/v1/accounts/{id}
 GET    /health                            healthcheck (no auth)
 GET    /docs                              Swagger (dev only)
 ```
+
+> Collection routes are declared `@router.get("/")` / `.post("/")`, so the **real** paths
+> are `/api/v1/jobs/` and `/api/v1/accounts/` (trailing slash). The slashless form
+> 307-redirects — clients that don't re-send `X-API-Key` on redirect will see a 401.
+> `commenters` mode requires `target_post_url`. Export auth is header-only (the `?api_key=`
+> query param the frontend builds is **not** read by the backend — export via `<a download>`
+> currently 401s; see [docs/AUDIT.md](docs/AUDIT.md)).
 
 ## File structure
 

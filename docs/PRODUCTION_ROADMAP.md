@@ -2,7 +2,11 @@
 
 > Arquivo de execução para os agentes (`.claude/agents/`). Cada fase lista o agente responsável, as tarefas e o critério de aceite. Marcar `[x]` ao concluir. Executar as fases em ordem.
 
-**Status geral:** Fase 0 concluída (código completo, CI verde, lint limpo). Fases 1–5 são o caminho até produção no Coolify.
+**Status geral (2026-07): produção NO AR** — https://hotlead.n3xus.dev · https://api-hotlead.n3xus.dev.
+- **Fases 0–3 concluídas** — deploy + auto-deploy CI-gated funcionando via Cloudflare Tunnel (mudança vs. o plano original de VLAN/port-forward + Tailscale).
+- **Fase 4 em andamento** — `scripts/backup.sh` e o monitor de uptime (`uptime.yml`) prontos; falta instalar o cron na VM, testar o restore e adicionar contas ao pool.
+- **Fase 5 pendente** — smoke test E2E (precisa de conta IG dedicada + proxy).
+- Bugs de código encontrados na auditoria de 2026-07 estão triados em [AUDIT.md](AUDIT.md) (o mais grave: cooldown de conta nunca reativa → esvazia o pool).
 
 ---
 
@@ -20,7 +24,8 @@
 
 ---
 
-## Fase 1 — Preparação do ambiente (agente: `devops`)
+## Fase 1 — Preparação do ambiente (agente: `devops`) ✅ concluída
+> Feito com Cloudflare Tunnel em vez de port-forward: a linha do firewall MikroTik (3000/8000) ficou obsoleta — nenhuma porta é forwardada.
 
 - [ ] Criar VM no Proxmox (padrão do homelab: template 9000 Ubuntu 22.04 cloud-init, VLAN dedicada seguindo convenção "VLAN ID = 3º octeto", /30)
       *Sugestão: VLAN 160 → IP 192.168.160.2, 4 vCPU, 8GB RAM, 60GB disco no `nvme-store`*
@@ -30,7 +35,7 @@
 
 **Aceite:** VM acessível via Tailscale, Coolify enxerga o servidor, `docker info` OK.
 
-## Fase 2 — Configuração e secrets (agente: `devops`)
+## Fase 2 — Configuração e secrets (agente: `devops`) ✅ concluída
 
 - [ ] Gerar secrets: `openssl rand -hex 32` para `SECRET_KEY` e `API_KEY`
 - [ ] Gerar `POSTGRES_PASSWORD` forte (sem `#` ou caracteres especiais problemáticos — lição do RTSP/Frigate)
@@ -40,7 +45,8 @@
 
 **Aceite:** `docker compose config` resolve sem `CHANGE_ME` em nenhuma var.
 
-## Fase 3 — Deploy (agente: `devops`)
+## Fase 3 — Deploy (agente: `devops`) ✅ concluída
+> Coolify usa **só** `docker-compose.yml` (não os dois arquivos). Deploy webhook + `deploy.yml` funcionando.
 
 - [ ] Criar resource no Coolify apontando para `Samurai33/hotlead@main` com os dois compose files (`-f docker-compose.yml -f docker-compose.prod.yml`)
 - [ ] Primeiro deploy: subir stack completa (postgres, redis, api, worker, beat, frontend)
@@ -50,7 +56,8 @@
 
 **Aceite:** `GET /health` retorna 200 via HTTPS; frontend carrega e autentica com a API key.
 
-## Fase 4 — Operação: contas, backup e observabilidade (agentes: `devops` + `scraper-specialist`)
+## Fase 4 — Operação: contas, backup e observabilidade (agentes: `devops` + `scraper-specialist`) 🔄 em andamento
+> `scripts/backup.sh` e `uptime.yml` prontos; swap na VM feito. Falta: cron do backup na VM, teste de restore, e contas no pool.
 
 - [ ] Adicionar 2+ contas Instagram ao pool via `/add-account` (contas dedicadas, nunca a pessoal)
 - [ ] Configurar 1 proxy residencial por conta (`proxy_url`)
@@ -61,7 +68,8 @@
 
 **Aceite:** backup restaurável comprovado + alerta de downtime funcionando + contas `active` no pool.
 
-## Fase 5 — Smoke test de produção (agentes: `scraper-specialist` + `frontend-dev`)
+## Fase 5 — Smoke test de produção (agentes: `scraper-specialist` + `frontend-dev`) ⏳ pendente
+> Bloqueado por: conta IG dedicada (@scraping.n3xus) + proxy. Ver AUDIT.md antes — o bug do cooldown pode brickar o pool durante o teste.
 
 - [ ] Criar job real com perfil público pequeno (< 500 seguidores)
 - [ ] Validar: progresso atualiza no dashboard, delays de 1–3s aplicados (conferir logs do worker), contadores de email/phone corretos
