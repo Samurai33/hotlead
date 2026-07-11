@@ -34,6 +34,31 @@ def _challenge_code_handler(username: str, choice) -> str:
     return input(f"   Verification code ({label}) sent to @{username}: ").strip()
 
 
+def _dump_ig_error(cl, exc) -> None:
+    """Surface the RAW Instagram response so we can tell a genuine bad password
+    from a masked block (checkpoint / challenge / rate-limit). IG frequently
+    returns 'bad_password' when it is really refusing an automated login."""
+    print(f"   ↳ exception: {type(exc).__name__}: {exc}")
+    last = getattr(cl, "last_json", None)
+    if isinstance(last, dict) and last:
+        for key in (
+            "message",
+            "error_type",
+            "error_title",
+            "two_factor_required",
+            "challenge",
+            "checkpoint_url",
+            "feedback_message",
+            "feedback_title",
+            "status",
+        ):
+            if key in last:
+                print(f"   ↳ IG.{key}: {last[key]}")
+        print(f"   ↳ raw (trimmed): {json.dumps(last)[:600]}")
+    else:
+        print("   ↳ no raw IG response captured (cl.last_json empty)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Add Instagram account to HotLead pool")
     parser.add_argument("username", help="Instagram username (without @)")
@@ -70,14 +95,18 @@ def main():
         except TwoFactorRequired:
             code = input("   Enter 2FA code (authenticator/SMS): ").strip()
             cl.login(username, password, verification_code=code)
-        except BadPassword:
-            print("❌ Wrong password. Please try again.")
+        except BadPassword as exc:
+            print("❌ Instagram rejected the login as 'bad password'.")
+            print("   ⚠️  This is OFTEN a masked block of an automated / new-device")
+            print("      login, NOT necessarily a wrong password. Raw response:")
+            _dump_ig_error(cl, exc)
             sys.exit(1)
-        except ChallengeRequired:
+        except ChallengeRequired as exc:
             # Reached only when the challenge can't be solved by a code (e.g. it
             # needs in-app approval). The code path is handled by the handler above.
             print("⚠️  Instagram requires in-app verification for this login.")
             print("   Open the Instagram app, approve the login attempt, then retry.")
+            _dump_ig_error(cl, exc)
             sys.exit(1)
 
         # Best practice: confirm the fresh session actually works before storing.
@@ -125,7 +154,11 @@ def main():
         print("❌ instagrapi not installed. Run: pip install instagrapi")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Error [{type(e).__name__}]: {e}")
+        try:
+            _dump_ig_error(cl, e)
+        except NameError:
+            pass
         sys.exit(1)
 
 
