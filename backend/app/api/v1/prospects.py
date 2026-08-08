@@ -53,6 +53,7 @@ async def export_prospects(
     job_id: uuid.UUID,
     fmt: str = Query("csv", pattern="^(csv|json)$"),
     has_email: bool | None = Query(None),
+    has_phone: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Export all prospects as CSV or JSON download."""
@@ -64,6 +65,8 @@ async def export_prospects(
     query = select(Prospect).where(Prospect.job_id == job_id)
     if has_email is True:
         query = query.where(Prospect.email.isnot(None))
+    if has_phone is True:
+        query = query.where(Prospect.phone.isnot(None))
     query = query.order_by(Prospect.followers.desc())
 
     result = await db.execute(query)

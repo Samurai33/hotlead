@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { prospectsApi, jobsApi, type Prospect } from "@/lib/api";
+import { prospectsApi, jobsApi, saveBlob, type Prospect } from "@/lib/api";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { ArrowLeft, Download, Mail, Phone, Globe, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -14,6 +14,8 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
   const [hasEmail, setHasEmail] = useState<boolean | null>(null);
   const [hasPhone, setHasPhone] = useState<boolean | null>(null);
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const { data: job }       = useSWR(`job-${jobId}`, () => jobsApi.get(jobId));
   const { data: prospects, isLoading } = useSWR(
@@ -27,13 +29,21 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
     { keepPreviousData: true },
   );
 
-  const exportUrl = (fmt: "csv" | "json") => {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const key  = typeof window !== "undefined" ? localStorage.getItem("hotlead_api_key") ?? "" : "";
-    let url = `${base}/api/v1/jobs/${jobId}/export?fmt=${fmt}`;
-    if (hasEmail) url += "&has_email=true";
-    return url;
-  };
+  async function handleExport(fmt: "csv" | "json") {
+    setExportError(null);
+    setExporting(fmt);
+    try {
+      const { blob, filename } = await jobsApi.exportBlob(jobId, fmt, {
+        has_email: hasEmail ?? undefined,
+        has_phone: hasPhone ?? undefined,
+      });
+      saveBlob(blob, filename);
+    } catch (err: any) {
+      setExportError(err.detail ?? "Erro ao exportar");
+    } finally {
+      setExporting(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,14 +63,28 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <a href={exportUrl("csv")} download className="btn-ghost text-xs flex items-center gap-1.5">
-            <Download size={12} /> CSV
-          </a>
-          <a href={exportUrl("json")} download className="btn-ghost text-xs flex items-center gap-1.5">
-            <Download size={12} /> JSON
-          </a>
+          <button
+            onClick={() => handleExport("csv")}
+            disabled={exporting !== null}
+            className="btn-ghost text-xs flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Download size={12} /> {exporting === "csv" ? "Exportando…" : "CSV"}
+          </button>
+          <button
+            onClick={() => handleExport("json")}
+            disabled={exporting !== null}
+            className="btn-ghost text-xs flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Download size={12} /> {exporting === "json" ? "Exportando…" : "JSON"}
+          </button>
         </div>
       </header>
+
+      {exportError && (
+        <div className="px-6 pt-4 max-w-7xl mx-auto">
+          <p className="text-xs text-red-500">{exportError}</p>
+        </div>
+      )}
 
       <main className="px-6 py-4 max-w-7xl mx-auto">
         {/* Filters */}

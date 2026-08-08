@@ -95,11 +95,47 @@ export const jobsApi = {
     request<Job>(`/api/v1/jobs/${id}/resume`, { method: "POST" }),
   delete: (id: string) =>
     request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
-  exportUrl: (id: string, fmt: "csv" | "json" = "csv") => {
-    const key = getApiKey();
-    return `${API_URL}/api/v1/jobs/${id}/export?fmt=${fmt}${key ? `&api_key=${key}` : ""}`;
+  // The export route is only guarded by the router-level X-API-Key header dep
+  // (no query-param auth — the key would end up in browser history and
+  // proxy/edge access logs). So this fetches with the header and hands back a
+  // Blob for the caller to save, instead of a plain URL an <a href download>
+  // could hit unauthenticated (audit H4).
+  exportBlob: async (
+    id: string,
+    fmt: "csv" | "json" = "csv",
+    filters?: { has_email?: boolean; has_phone?: boolean },
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const qs = new URLSearchParams({ fmt });
+    if (filters?.has_email) qs.set("has_email", "true");
+    if (filters?.has_phone) qs.set("has_phone", "true");
+
+    const res = await fetch(`${API_URL}/api/v1/jobs/${id}/export?${qs}`, {
+      headers: { "X-API-Key": getApiKey() },
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) redirectToLogin();
+      throw new ApiError(res.status, `HTTP ${res.status}`);
+    }
+
+    const disposition = res.headers.get("content-disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `hotlead_export.${fmt}`;
+
+    return { blob: await res.blob(), filename };
   },
 };
+
+/** Triggers a browser save-as for a Blob obtained from an authenticated fetch. */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // ─── Prospects ────────────────────────────────────────────────
 
