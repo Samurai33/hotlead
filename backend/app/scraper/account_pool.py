@@ -31,7 +31,16 @@ async def reactivate_cooldown_accounts(db: AsyncSession) -> None:
 
 
 async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account, IGClient]:
-    """Return (Account, IGClient) for the least-recently-used active account."""
+    """Return (Account, IGClient) for the least-recently-used active account.
+
+    Not called by the Celery workers (see workers/_sync_helpers.get_account_sync,
+    the canonical/used path — audit L5 tracks consolidating these two). This twin
+    only filters accounts already at/near the hourly cap at checkout time; it does
+    NOT wire a per-request counter (audit H2) because IGClient's request_hook is a
+    sync callback and this pool is async-only — bridging that is real work with no
+    payoff for dead code. If this path is ever revived for production use, port the
+    request_hook pattern from _sync_helpers._make_request_hook first.
+    """
     await reactivate_cooldown_accounts(db)
     result = await db.execute(
         select(Account)
@@ -49,10 +58,6 @@ async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account,
                 session_json=account.session_json,
                 proxy_url=account.proxy_url,
             )
-            pipe = redis.pipeline()
-            pipe.incr(_RATE_KEY.format(account_id=account.id))
-            pipe.expire(_RATE_KEY.format(account_id=account.id), 3600)
-            await pipe.execute()
             return account, client
     raise RuntimeError("All accounts hit rate limits. Retry in 1h.")
 

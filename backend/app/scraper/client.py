@@ -7,7 +7,7 @@ import json
 import logging
 import random
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 from instagrapi import Client
 from instagrapi.exceptions import (
@@ -44,7 +44,13 @@ class ProfileNotFound(Exception):
 class IGClient:
     """Wrapper around instagrapi.Client with anti-ban controls."""
 
-    def __init__(self, username: str, session_json: str | None, proxy_url: str | None = None):
+    def __init__(
+        self,
+        username: str,
+        session_json: str | None,
+        proxy_url: str | None = None,
+        request_hook: Callable[[], None] | None = None,
+    ):
         self.username = username
         self._cl = Client()
         if proxy_url:
@@ -52,6 +58,10 @@ class IGClient:
         if not session_json:
             raise ValueError(f"No session for @{username}. Use add_account.py first.")
         self._cl.load_settings(json.loads(session_json))
+        # Called once per real IG request, before the mandatory delay — lets the
+        # caller enforce a per-request rate cap (audit H2) instead of the account
+        # only being counted once at checkout.
+        self._request_hook = request_hook
         logger.info(f"[{username}] Session loaded")
 
     def get_user_id(self, username: str) -> str:
@@ -162,6 +172,8 @@ class IGClient:
 
     def _delay(self):
         """Mandatory random delay — NEVER skip."""
+        if self._request_hook:
+            self._request_hook()
         time.sleep(random.uniform(settings.ig_request_delay_min, settings.ig_request_delay_max))
 
     @staticmethod

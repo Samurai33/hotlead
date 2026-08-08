@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
-from app.scraper.client import IGClient
+from app.scraper.client import IGClient, RateLimitExceeded
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -138,12 +138,44 @@ def reactivate_cooldown_accounts_sync(db: Session) -> None:
     db.commit()
 
 
+_RATE_KEY = "hotlead:ratelimit:{}"
+
+
+def _make_request_hook(account_id, db: Session, redis_client, max_req: int):
+    """Build the IGClient request_hook for one checkout (audit H2).
+
+    Fires once per real IG API call (see IGClient._delay): increments the
+    per-account Redis counter at request granularity — not once per checkout
+    — and mirrors it onto Account.requests_today for the UI. Raises
+    RateLimitExceeded once the account crosses the cap so a single long job
+    can't blow past the hourly limit; the existing except-block in
+    workers/tasks.py already cools the account down and retries on this.
+    """
+    from app.models.account import Account
+
+    key = _RATE_KEY.format(account_id)
+
+    def hook() -> None:
+        pipe = redis_client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, 3600)
+        count, _expire_ok = pipe.execute()
+        db.execute(
+            update(Account)
+            .where(Account.id == account_id)
+            .values(requests_today=Account.requests_today + 1)
+        )
+        if int(count) >= max_req - 20:
+            raise RateLimitExceeded(f"Hourly request cap reached for account {account_id}")
+
+    return hook
+
+
 def get_account_sync(db: Session, redis_client) -> tuple:
     from app.models.account import Account, AccountStatus
 
     reactivate_cooldown_accounts_sync(db)
 
-    _RATE_KEY = "hotlead:ratelimit:{}"
     max_req = settings.ig_max_requests_per_hour
     result = db.execute(
         select(Account)
@@ -160,11 +192,8 @@ def get_account_sync(db: Session, redis_client) -> tuple:
                 username=account.username,
                 session_json=account.session_json,
                 proxy_url=account.proxy_url,
+                request_hook=_make_request_hook(account.id, db, redis_client, max_req),
             )
-            pipe = redis_client.pipeline()
-            pipe.incr(_RATE_KEY.format(account.id))
-            pipe.expire(_RATE_KEY.format(account.id), 3600)
-            pipe.execute()
             return account, client
     raise RuntimeError("All accounts hit rate limits. Retry after 1 hour.")
 

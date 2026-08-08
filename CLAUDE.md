@@ -54,11 +54,12 @@ Redis ↔ Celery Workers
 4. `ChallengeRequired` → mark account cooldown 30min
 5. Never call `cl.login()` if session_json exists
 
-> **Known code↔spec gaps (see [docs/AUDIT.md](docs/AUDIT.md), 2026-07):** the Redis
-> counter increments per account *checkout*, not per IG request, so rule 2's 180/hr cap
-> isn't enforced at request granularity; and **cooldown accounts are never reactivated**
-> (nothing reads `cooldown_until`), so the pool drains over time. `LoginRequired` (expired
-> session) is mislabeled as `ChallengeRequired`. Fix before real production volume.
+> Audit H1/H2/H3 (see [docs/AUDIT.md](docs/AUDIT.md), 2026-07) are fixed: cooldown
+> accounts auto-reactivate once `cooldown_until` passes; the Redis counter increments
+> per real IG request (via `IGClient`'s `request_hook`) and enforces the 180/hr margin
+> mid-job, not just once at checkout; and `LoginRequired` maps to its own
+> `session_expired` account state (no timed recovery, no more looping on a pointless
+> cooldown) instead of being mislabeled as a challenge.
 
 ## Data models
 
@@ -82,7 +83,7 @@ created_at
 ### Account
 ```
 id, username, session_json (NO password),
-proxy_url, status (active|cooldown|banned),
+proxy_url, status (active|cooldown|session_expired|banned),
 requests_today, last_used_at, cooldown_until,
 created_at, updated_at
 ```
