@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # (anti-ban rule 2's "stop at 180 for margin" — was hardcoded as `- 20`
     # in both account_pool.py and _sync_helpers.py; audit L5).
     ig_rate_limit_margin: int = 20
+    # Consecutive ChallengeRequired/FeedbackRequired hits before an account is
+    # permanently banned instead of re-cooling-down forever (audit AUDIT-2.md H3).
+    ig_challenge_streak_limit: int = 3
 
     # App
     log_level: str = "INFO"

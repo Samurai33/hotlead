@@ -9,7 +9,12 @@ from collections.abc import Generator
 
 from celery import shared_task
 
-from app.scraper.client import AccountChallenged, RateLimitExceeded, SessionExpired
+from app.scraper.client import (
+    AccountChallenged,
+    AccountFlagged,
+    RateLimitExceeded,
+    SessionExpired,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +30,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
         get_job,
         get_sync_db,
         get_sync_redis,
+        mark_account_challenged_sync,
         mark_account_cooldown_sync,
         mark_account_session_expired_sync,
         save_prospect_batch,
@@ -112,8 +118,13 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             raise self.retry(exc=exc, countdown=120, max_retries=3)
 
         except AccountChallenged as exc:
-            mark_account_cooldown_sync(db, redis, account)
+            mark_account_challenged_sync(db, redis, account)
             logger.warning(f"[Job {job_id}] Challenge, retry 300s")
+            raise self.retry(exc=exc, countdown=300, max_retries=2)
+
+        except AccountFlagged as exc:
+            mark_account_challenged_sync(db, redis, account)
+            logger.warning(f"[Job {job_id}] Flagged (FeedbackRequired), retry 300s")
             raise self.retry(exc=exc, countdown=300, max_retries=2)
 
         except SessionExpired:

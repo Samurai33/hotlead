@@ -232,12 +232,43 @@ def get_account_sync(db: Session, redis_client) -> tuple:
 
 
 def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
+    """Plain rate-limit cooldown — expected, routine, does NOT count toward
+    the challenge_streak ban escalation (see mark_account_challenged_sync)."""
     from app.models.account import AccountStatus
 
     account.status = AccountStatus.cooldown
     account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
     db.commit()
     logger.warning(f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min")
+
+
+def mark_account_challenged_sync(db: Session, redis_client, account) -> None:
+    """Cooldown after a real challenge/flag (AccountChallenged/AccountFlagged),
+    tracking a consecutive streak that escalates to a permanent ban once it
+    crosses ig_challenge_streak_limit — instead of cycling
+    cooldown -> active -> cooldown forever on an account Instagram has
+    already flagged (audit AUDIT-2.md H3). Distinct from
+    mark_account_cooldown_sync: a plain rate limit is routine and must not
+    push an account toward a ban.
+    """
+    from app.models.account import AccountStatus
+
+    account.challenge_streak += 1
+    if account.challenge_streak >= settings.ig_challenge_streak_limit:
+        account.status = AccountStatus.banned
+        account.cooldown_until = None
+        logger.error(
+            f"[{account.username}] Banned after {account.challenge_streak} "
+            "consecutive challenges/flags"
+        )
+    else:
+        account.status = AccountStatus.cooldown
+        account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
+        logger.warning(
+            f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min "
+            f"(challenge streak {account.challenge_streak}/{settings.ig_challenge_streak_limit})"
+        )
+    db.commit()
 
 
 def mark_account_session_expired_sync(db: Session, account) -> None:
@@ -253,4 +284,5 @@ def mark_account_session_expired_sync(db: Session, account) -> None:
 def save_session_sync(db: Session, account, client: IGClient) -> None:
     account.session_json = client.get_updated_session()
     account.last_used_at = datetime.now(UTC)
+    account.challenge_streak = 0
     db.commit()

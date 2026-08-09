@@ -39,3 +39,10 @@ class Account(UUIDBase):
     requests_today: Mapped[int] = mapped_column(Integer, default=0)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Consecutive ChallengeRequired/FeedbackRequired count. Resets to 0 on any
+    # successful scrape; escalates the account to `banned` once it crosses
+    # Settings.ig_challenge_streak_limit instead of cycling
+    # cooldown -> active -> cooldown forever on an account IG has already
+    # flagged (audit AUDIT-2.md H3).
+    challenge_streak: Mapped[int] = mapped_column(Integer, default=0)

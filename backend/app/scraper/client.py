@@ -12,6 +12,7 @@ from collections.abc import Callable, Generator
 from instagrapi import Client
 from instagrapi.exceptions import (
     ChallengeRequired,
+    FeedbackRequired,
     LoginRequired,
     PleaseWaitFewMinutes,
     RateLimitError,
@@ -30,6 +31,15 @@ class RateLimitExceeded(Exception):
 
 
 class AccountChallenged(Exception):
+    pass
+
+
+class AccountFlagged(Exception):
+    """instagrapi's FeedbackRequired — IG has already flagged the account for
+    spammy behavior. Distinct from AccountChallenged: a sibling exception in
+    instagrapi, not a variant, and more serious than a plain rate limit
+    (audit H2)."""
+
     pass
 
 
@@ -74,6 +84,8 @@ class IGClient:
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
         except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
+        except FeedbackRequired:
+            raise AccountFlagged(f"Feedback-required block on @{self.username}")
         except LoginRequired:
             raise SessionExpired(f"Session expired for @{self.username}")
 
@@ -110,6 +122,8 @@ class IGClient:
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
             except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
+            except FeedbackRequired:
+                raise AccountFlagged(f"Feedback-required block on @{self.username}")
             except LoginRequired:
                 raise SessionExpired(f"Session expired for @{self.username}")
             if on_cursor:
@@ -145,6 +159,8 @@ class IGClient:
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
             except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
+            except FeedbackRequired:
+                raise AccountFlagged(f"Feedback-required block on @{self.username}")
             except LoginRequired:
                 raise SessionExpired(f"Session expired for @{self.username}")
             if on_cursor:
@@ -178,6 +194,8 @@ class IGClient:
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
         except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
+        except FeedbackRequired:
+            raise AccountFlagged(f"Feedback-required block on @{self.username}")
         except LoginRequired:
             raise SessionExpired(f"Session expired for @{self.username}")
         except Exception as exc:
@@ -199,6 +217,8 @@ class IGClient:
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
             except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
+            except FeedbackRequired:
+                raise AccountFlagged(f"Feedback-required block on @{self.username}")
             except LoginRequired:
                 raise SessionExpired(f"Session expired for @{self.username}")
             if on_cursor:

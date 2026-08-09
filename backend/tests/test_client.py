@@ -13,8 +13,9 @@ from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
 from instagrapi import Client as RealClient
+from instagrapi.exceptions import FeedbackRequired
 
-from app.scraper.client import IGClient
+from app.scraper.client import AccountFlagged, IGClient
 
 
 def _make_client() -> IGClient:
@@ -130,6 +131,42 @@ def test_iter_commenters_respects_max_count_across_pages():
 
     assert [r["username"] for r in result] == ["u1", "u2"]
     assert cl._cl.media_comments_chunk.call_count == 1
+
+
+def test_get_user_id_maps_feedback_required_to_account_flagged():
+    """audit H2: FeedbackRequired (IG has already flagged the account) is a
+    sibling exception to ChallengeRequired in instagrapi, not a variant --
+    it was silently falling through to the generic except Exception."""
+    cl = _make_client()
+    cl._cl.user_id_from_username.side_effect = FeedbackRequired("flagged")
+
+    with pytest.raises(AccountFlagged):
+        cl.get_user_id("someprofile")
+
+
+def test_iter_followers_maps_feedback_required_to_account_flagged():
+    cl = _make_client()
+    cl._cl.user_followers_v1_chunk.side_effect = FeedbackRequired("flagged")
+
+    with pytest.raises(AccountFlagged):
+        list(cl.iter_followers("someprofile"))
+
+
+def test_iter_following_maps_feedback_required_to_account_flagged():
+    cl = _make_client()
+    cl._cl.user_following_v1_chunk.side_effect = FeedbackRequired("flagged")
+
+    with pytest.raises(AccountFlagged):
+        list(cl.iter_following("someprofile"))
+
+
+def test_iter_commenters_maps_feedback_required_to_account_flagged():
+    cl = _make_client()
+    cl._cl.media_pk_from_url.return_value = "media123"
+    cl._cl.media_comments_chunk.side_effect = FeedbackRequired("flagged")
+
+    with pytest.raises(AccountFlagged):
+        list(cl.iter_commenters("https://www.instagram.com/p/ABC/"))
 
 
 @pytest.mark.parametrize("bad_kwargs", [{"next_cursor": "x"}])
