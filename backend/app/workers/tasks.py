@@ -29,6 +29,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
         mark_account_session_expired_sync,
         save_prospect_batch,
         save_session_sync,
+        update_job_cursor,
         update_job_status,
     )
 
@@ -49,7 +50,16 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             return {"status": "error", "detail": str(exc)}
 
         try:
-            iterator: Generator = getattr(client, iterator_name)(target)
+            # start_cursor/on_cursor only apply to followers/following — iter_commenters
+            # has no chunked pagination to resume (audit M2/L8 track that separately).
+            # A pause or a Celery retry re-enters here with job.scrape_cursor already
+            # set from the last completed page, so this naturally resumes instead of
+            # restarting at page 1 (audit M1).
+            kwargs = {}
+            if iterator_name in ("iter_followers", "iter_following"):
+                kwargs["start_cursor"] = job.scrape_cursor
+                kwargs["on_cursor"] = lambda cursor: update_job_cursor(db, job_id, cursor)
+            iterator: Generator = getattr(client, iterator_name)(target, **kwargs)
             batch: list[dict] = []
 
             for user_data in iterator:
@@ -57,21 +67,23 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
                 if current and current.status == "paused":
                     logger.info(f"[Job {job_id}] Paused gracefully")
                     if batch:
-                        save_prospect_batch(db, job_id, batch)
-                        update_job_status(db, job_id, "paused", scraped_delta=len(batch))
+                        result = save_prospect_batch(db, job_id, batch)
+                        update_job_status(db, job_id, "paused", scraped_delta=result["inserted"])
                     break
 
                 batch.append(user_data)
 
                 if len(batch) >= 50:
-                    save_prospect_batch(db, job_id, batch)
-                    update_job_status(db, job_id, "running", scraped_delta=len(batch))
-                    logger.info(f"[Job {job_id}] Batch saved: {len(batch)}")
+                    result = save_prospect_batch(db, job_id, batch)
+                    update_job_status(db, job_id, "running", scraped_delta=result["inserted"])
+                    logger.info(
+                        f"[Job {job_id}] Batch saved: {result['inserted']}/{len(batch)} new"
+                    )
                     batch = []
 
             if batch:
-                save_prospect_batch(db, job_id, batch)
-                update_job_status(db, job_id, "running", scraped_delta=len(batch))
+                result = save_prospect_batch(db, job_id, batch)
+                update_job_status(db, job_id, "running", scraped_delta=result["inserted"])
 
             final = get_job(db, job_id)
             if final and final.status != "paused":

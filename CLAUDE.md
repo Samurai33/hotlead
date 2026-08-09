@@ -69,7 +69,7 @@ id, profile_username, mode (followers|following|commenters),
 target_post_url (required when mode=commenters),
 status (pending|running|paused|done|error),
 total_count, scraped_count, emails_found, phones_found,
-celery_task_id, error_message, created_at, updated_at
+celery_task_id, error_message, scrape_cursor, created_at, updated_at
 ```
 
 ### Prospect

@@ -39,6 +39,11 @@ class Job(UUIDBase):
     # Celery task reference (for revoke on delete)
     celery_task_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
+    # Pagination cursor (instagrapi max_id) for followers/following — lets
+    # pause/resume and Celery retries continue instead of restarting at page
+    # 1 (audit M1). Not used for commenters (no chunked pagination there).
+    scrape_cursor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Error details
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 

@@ -80,33 +80,52 @@ def update_job_status(
     db.commit()
 
 
-def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
+def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> dict:
+    """Insert prospects, skipping any (job_id, ig_pk) already saved.
+
+    Pause/resume and Celery retries re-walk the last in-flight page (audit
+    M1), so the same followers/following can get yielded twice. ON CONFLICT
+    DO NOTHING + RETURNING only reports rows that were actually inserted,
+    so callers can update scraped_count/emails_found/phones_found off the
+    real delta instead of len(batch) — otherwise those counters inflate past
+    what's actually in the prospects table on every resume/retry.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
     from app.models.prospect import Prospect
 
-    prospects = []
-    emails = phones = 0
-    for data in batch:
-        p = Prospect(
-            job_id=uuid.UUID(job_id),
-            username=data.get("username", ""),
-            full_name=data.get("full_name"),
-            ig_pk=data.get("ig_pk"),
-            email=data.get("email"),
-            phone=data.get("phone"),
-            website=data.get("website"),
-            biography=data.get("biography"),
-            followers=data.get("followers", 0),
-            following=data.get("following", 0),
-            is_business=data.get("is_business", False),
-            is_private=data.get("is_private", False),
-            is_verified=data.get("is_verified", False),
-        )
-        prospects.append(p)
-        if p.email:
-            emails += 1
-        if p.phone:
-            phones += 1
-    db.bulk_save_objects(prospects)
+    if not batch:
+        return {"inserted": 0, "emails": 0, "phones": 0}
+
+    rows = [
+        {
+            "job_id": uuid.UUID(job_id),
+            "username": data.get("username", ""),
+            "full_name": data.get("full_name"),
+            "ig_pk": data.get("ig_pk"),
+            "email": data.get("email"),
+            "phone": data.get("phone"),
+            "website": data.get("website"),
+            "biography": data.get("biography"),
+            "followers": data.get("followers", 0),
+            "following": data.get("following", 0),
+            "is_business": data.get("is_business", False),
+            "is_private": data.get("is_private", False),
+            "is_verified": data.get("is_verified", False),
+        }
+        for data in batch
+    ]
+
+    stmt = (
+        pg_insert(Prospect)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["job_id", "ig_pk"])
+        .returning(Prospect.email, Prospect.phone)
+    )
+    inserted_rows = db.execute(stmt).all()
+
+    emails = sum(1 for r in inserted_rows if r.email)
+    phones = sum(1 for r in inserted_rows if r.phone)
     if emails > 0 or phones > 0:
         db.execute(
             text(
@@ -115,7 +134,21 @@ def save_prospect_batch(db: Session, job_id: str, batch: list[dict]) -> int:
             {"e": emails, "p": phones, "id": str(job_id)},
         )
     db.commit()
-    return emails
+    return {"inserted": len(inserted_rows), "emails": emails, "phones": phones}
+
+
+def update_job_cursor(db: Session, job_id: str, cursor: str | None) -> None:
+    """Persist the followers/following pagination max_id onto the job.
+
+    Not committed here — piggybacks on the next natural commit (a prospect
+    batch save or the end-of-task session save), matching the per-request
+    counter pattern in _make_request_hook: frequent enough (one call per
+    ~50-item page) that losing an uncommitted update on crash just means
+    re-walking one page, not the whole job.
+    """
+    from app.models.job import Job
+
+    db.execute(update(Job).where(Job.id == uuid.UUID(job_id)).values(scrape_cursor=cursor))
 
 
 def reactivate_cooldown_accounts_sync(db: Session) -> None:

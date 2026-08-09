@@ -77,18 +77,34 @@ class IGClient:
         except LoginRequired:
             raise SessionExpired(f"Session expired for @{self.username}")
 
-    def iter_followers(self, username: str, max_count: int = 0) -> Generator[dict, None, None]:
-        """Yield follower dicts. max_count=0 = unlimited."""
+    def iter_followers(
+        self,
+        username: str,
+        max_count: int = 0,
+        start_cursor: str | None = None,
+        on_cursor: Callable[[str | None], None] | None = None,
+    ) -> Generator[dict, None, None]:
+        """Yield follower dicts. max_count=0 = unlimited.
+
+        start_cursor resumes pagination from a previously-persisted max_id
+        instead of always restarting at page 1 (audit M1 — pause/resume and
+        Celery retries used to lose all progress). on_cursor is called with
+        the new max_id after every page so the caller can persist it (e.g.
+        onto Job.scrape_cursor) for a future resume.
+        """
         user_id = self.get_user_id(username)
-        next_cursor = None
+        next_cursor = start_cursor
         scraped = 0
         while True:
             if max_count and scraped >= max_count:
                 break
             self._delay()
             try:
+                # instagrapi's actual kwarg is max_id, not next_cursor — a
+                # long-standing bug (predates the 2.1.2->2.18.1 bump) that
+                # made every real followers/following call raise TypeError.
                 batch, next_cursor = self._cl.user_followers_v1_chunk(
-                    user_id, max_amount=50, next_cursor=next_cursor
+                    user_id, max_amount=50, max_id=next_cursor or ""
                 )
             except (RateLimitError, PleaseWaitFewMinutes):
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
@@ -96,6 +112,8 @@ class IGClient:
                 raise AccountChallenged(f"Challenge on @{self.username}")
             except LoginRequired:
                 raise SessionExpired(f"Session expired for @{self.username}")
+            if on_cursor:
+                on_cursor(next_cursor)
             for user in batch:
                 yield self._normalize(user)
                 scraped += 1
@@ -104,10 +122,16 @@ class IGClient:
             if not next_cursor:
                 break
 
-    def iter_following(self, username: str, max_count: int = 0) -> Generator[dict, None, None]:
-        """Yield following dicts."""
+    def iter_following(
+        self,
+        username: str,
+        max_count: int = 0,
+        start_cursor: str | None = None,
+        on_cursor: Callable[[str | None], None] | None = None,
+    ) -> Generator[dict, None, None]:
+        """Yield following dicts. See iter_followers for start_cursor/on_cursor."""
         user_id = self.get_user_id(username)
-        next_cursor = None
+        next_cursor = start_cursor
         scraped = 0
         while True:
             if max_count and scraped >= max_count:
@@ -115,7 +139,7 @@ class IGClient:
             self._delay()
             try:
                 batch, next_cursor = self._cl.user_following_v1_chunk(
-                    user_id, max_amount=50, next_cursor=next_cursor
+                    user_id, max_amount=50, max_id=next_cursor or ""
                 )
             except (RateLimitError, PleaseWaitFewMinutes):
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
@@ -123,6 +147,8 @@ class IGClient:
                 raise AccountChallenged(f"Challenge on @{self.username}")
             except LoginRequired:
                 raise SessionExpired(f"Session expired for @{self.username}")
+            if on_cursor:
+                on_cursor(next_cursor)
             for user in batch:
                 yield self._normalize(user)
                 scraped += 1
