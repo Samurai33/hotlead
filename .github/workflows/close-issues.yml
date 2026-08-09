@@ -1,0 +1,37 @@
+name: Close Issues
+
+# Manual housekeeping utility: closes one or more issues with a comment
+# linking the commit that fixed them. Uses the run's own auto-provisioned
+# GITHUB_TOKEN (scoped to this repo, expires with the job) instead of any
+# personal access token, and only ever runs on an explicit manual trigger.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issues_json:
+        description: >
+          JSON array of objects: [{"number":94,"sha":"ca878a0","subject":"commit subject line"}]
+        required: true
+
+permissions:
+  issues: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment and close each issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUES_JSON: ${{ inputs.issues_json }}
+        run: |
+          echo "$ISSUES_JSON" | jq -c '.[]' | while read -r item; do
+            number=$(echo "$item" | jq -r '.number')
+            sha=$(echo "$item" | jq -r '.sha')
+            subject=$(echo "$item" | jq -r '.subject')
+            body=$(printf 'Corrigido em [`%s`](https://github.com/%s/commit/%s), já em `main`.\n\n> %s' "$sha" "$REPO" "$sha" "$subject")
+            gh issue comment "$number" --repo "$REPO" --body "$body"
+            gh issue close "$number" --repo "$REPO" --reason completed
+            echo "Closed #$number"
+          done
