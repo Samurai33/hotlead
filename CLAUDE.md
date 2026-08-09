@@ -136,7 +136,7 @@ hotlead/
 │   │   ├── core/          config, database, security, deps
 │   │   ├── models/        job.py, prospect.py, account.py
 │   │   ├── schemas/       pydantic v2
-│   │   ├── scraper/       client, account_pool, extractor
+│   │   ├── scraper/       client, extractor
 │   │   └── workers/       celery_app, tasks
 │   ├── alembic/       migrations
 │   └── tests/

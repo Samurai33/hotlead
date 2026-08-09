@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { jobsApi, type JobMode } from "@/lib/api";
+import { useActionState, useState } from "react";
+import { createJobAction, type CreateJobState } from "./actions";
+import type { JobMode } from "@/lib/types";
 import { ArrowLeft, Loader2, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -29,43 +29,18 @@ function isInstagramMediaUrl(value: string) {
   }
 }
 
+const initialState: CreateJobState = { error: null };
+
 export default function NewJobPage() {
-  const router = useRouter();
-  const [username, setUsername]   = useState("");
-  const [mode, setMode]           = useState<JobMode>("followers");
-  const [postUrl, setPostUrl]     = useState("");
-  const [maxCount, setMaxCount]   = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [mode, setMode]         = useState<JobMode>("followers");
+  const [postUrl, setPostUrl]   = useState("");
+  const [state, formAction, pending] = useActionState(createJobAction, initialState);
 
   const isCommenters = mode === "commenters";
   const postUrlIsValid = !isCommenters || isInstagramMediaUrl(postUrl);
   const showPostUrlError = isCommenters && Boolean(postUrl.trim()) && !postUrlIsValid;
   const isValid = Boolean(username.trim()) && postUrlIsValid;
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!username.trim()) return;
-    if (!postUrlIsValid) {
-      setError("Informe a URL de um post, reel ou tv do Instagram.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const parsedMaxCount = maxCount.trim() ? Number(maxCount) : undefined;
-      const job = await jobsApi.create({
-        profile_username: username,
-        mode,
-        ...(isCommenters ? { target_post_url: postUrl.trim() } : {}),
-        ...(parsedMaxCount ? { max_count: parsedMaxCount } : {}),
-      });
-      router.push(`/jobs/${job.id}`);
-    } catch (err: any) {
-      setError(err.detail ?? "Erro ao criar job");
-      setLoading(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-background px-6 py-6 max-w-lg mx-auto">
@@ -78,13 +53,14 @@ export default function NewJobPage() {
         Informe o perfil e o tipo de extração.
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form action={formAction} className="space-y-5">
         {/* Username */}
         <div>
           <label className="block text-sm font-medium mb-1.5">Perfil Instagram</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-mono text-sm">@</span>
             <input
+              name="username"
               className="input pl-7"
               placeholder="cozinha4e20"
               value={username}
@@ -132,6 +108,7 @@ export default function NewJobPage() {
             <div className="relative">
               <LinkIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
+                name="postUrl"
                 className="input pl-8"
                 placeholder="https://www.instagram.com/p/ABC123/"
                 value={postUrl}
@@ -155,31 +132,30 @@ export default function NewJobPage() {
         <div>
           <label className="block text-sm font-medium mb-1.5">Limite de perfis (opcional)</label>
           <input
+            name="maxCount"
             className="input"
             type="number"
             min={1}
             placeholder="Sem limite"
-            value={maxCount}
-            onChange={(e) => setMaxCount(e.target.value)}
           />
           <p className="text-xs text-text-muted mt-1.5">
             Deixe em branco para extrair sem limite.
           </p>
         </div>
 
-        {error && (
+        {state.error && (
           <p className="text-status-error text-sm bg-status-error/10 px-3 py-2 rounded-md">
-            {error}
+            {state.error}
           </p>
         )}
 
         <button
           type="submit"
-          disabled={loading || !isValid}
+          disabled={pending || !isValid}
           className="btn-primary w-full justify-center flex items-center gap-2"
         >
-          {loading && <Loader2 size={14} className="animate-spin" />}
-          {loading ? "Iniciando..." : "Iniciar Scraping"}
+          {pending && <Loader2 size={14} className="animate-spin" />}
+          {pending ? "Iniciando..." : "Iniciar Scraping"}
         </button>
       </form>
     </div>

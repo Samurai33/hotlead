@@ -15,3 +15,8 @@ warn_return_any = false
 # instead of actually type-checking anything -- audit AUDIT-2.md M12 found
 # mypy referenced in tooling but never actually run in CI; this is why.
 explicit_package_bases = true
+# Without this, `Settings()` in config.py's get_settings() reads as a
+# call missing every required field -- mypy has no idea pydantic-settings
+# populates them from env vars at runtime, since that's not visible from
+# the class's plain __init__ signature. The plugin teaches it that.
+plugins = ["pydantic.mypy"]
