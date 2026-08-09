@@ -55,7 +55,8 @@ class Settings(BaseSettings):
     ig_cooldown_minutes: int = 30
     # Stop handing out an account this many requests short of the hourly cap
     # (anti-ban rule 2's "stop at 180 for margin" — was hardcoded as `- 20`
-    # in both account_pool.py and _sync_helpers.py; audit L5).
+    # in _sync_helpers.py and the now-deleted dead async account_pool.py
+    # twin; audit L5/L1/L2).
     ig_rate_limit_margin: int = 20
     # Consecutive ChallengeRequired/FeedbackRequired hits before an account is
     # permanently banned instead of re-cooling-down forever (audit AUDIT-2.md H3).
