@@ -124,14 +124,22 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-16 bg-surface h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-brand rounded-full transition-all"
-                            style={{ width: `${progressPct(job.scraped_count, job.scraped_count)}%` }}
-                          />
-                        </div>
+                        {job.total_count > 0 ? (
+                          <div className="w-16 bg-surface h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-brand rounded-full transition-all"
+                              style={{ width: `${progressPct(job.scraped_count, job.total_count)}%` }}
+                            />
+                          </div>
+                        ) : (
+                          // No max_count was set for this job (unlimited) — there's no
+                          // real total to show a filled/empty ratio against (audit L1:
+                          // this used to divide scraped_count by itself, always 100%).
+                          <span className="text-xs text-text-muted">sem limite</span>
+                        )}
                         <span className="text-xs text-text-muted font-mono">
                           {formatNumber(job.scraped_count)}
+                          {job.total_count > 0 && ` / ${formatNumber(job.total_count)}`}
                         </span>
                       </div>
                     </td>

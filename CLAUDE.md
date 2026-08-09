@@ -18,7 +18,7 @@ from each follower's bio — producing clean prospect lists for outreach campaig
 | Job queue | Celery 5 · Redis broker |
 | Database | PostgreSQL 16 · SQLAlchemy 2 async · Alembic |
 | Cache | Redis 7 |
-| Frontend | Next.js 15 App Router · TypeScript · Tailwind v4 (Radix deps present but unused) |
+| Frontend | Next.js 15 App Router · TypeScript · Tailwind v4 |
 | Deploy | Docker Compose · Coolify · Proxmox homelab |
 
 ## Architecture

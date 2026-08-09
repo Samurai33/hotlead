@@ -79,16 +79,22 @@ export interface JobSummary {
   profile_username: string;
   mode: JobMode;
   status: JobStatus;
+  total_count: number;
   scraped_count: number;
   emails_found: number;
+  phones_found: number;
   created_at: string;
 }
 
 export const jobsApi = {
   list: () => request<JobSummary[]>("/api/v1/jobs"),
   get: (id: string) => request<Job>(`/api/v1/jobs/${id}`),
-  create: (data: { profile_username: string; mode?: JobMode; target_post_url?: string }) =>
-    request<Job>("/api/v1/jobs", { method: "POST", body: JSON.stringify(data) }),
+  create: (data: {
+    profile_username: string;
+    mode?: JobMode;
+    target_post_url?: string;
+    max_count?: number;
+  }) => request<Job>("/api/v1/jobs", { method: "POST", body: JSON.stringify(data) }),
   pause: (id: string) =>
     request<Job>(`/api/v1/jobs/${id}/pause`, { method: "POST" }),
   resume: (id: string) =>

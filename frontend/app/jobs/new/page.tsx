@@ -34,6 +34,7 @@ export default function NewJobPage() {
   const [username, setUsername]   = useState("");
   const [mode, setMode]           = useState<JobMode>("followers");
   const [postUrl, setPostUrl]     = useState("");
+  const [maxCount, setMaxCount]   = useState("");
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
@@ -52,10 +53,12 @@ export default function NewJobPage() {
     setLoading(true);
     setError(null);
     try {
+      const parsedMaxCount = maxCount.trim() ? Number(maxCount) : undefined;
       const job = await jobsApi.create({
         profile_username: username,
         mode,
         ...(isCommenters ? { target_post_url: postUrl.trim() } : {}),
+        ...(parsedMaxCount ? { max_count: parsedMaxCount } : {}),
       });
       router.push(`/jobs/${job.id}`);
     } catch (err: any) {
@@ -147,6 +150,22 @@ export default function NewJobPage() {
             )}
           </div>
         )}
+
+        {/* Optional cap on how many profiles to scrape */}
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Limite de perfis (opcional)</label>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            placeholder="Sem limite"
+            value={maxCount}
+            onChange={(e) => setMaxCount(e.target.value)}
+          />
+          <p className="text-xs text-text-muted mt-1.5">
+            Deixe em branco para extrair sem limite.
+          </p>
+        </div>
 
         {error && (
           <p className="text-status-error text-sm bg-status-error/10 px-3 py-2 rounded-md">
