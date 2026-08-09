@@ -32,6 +32,13 @@ celery_app.conf.update(
         "app.workers.tasks.*": {"queue": "scraping"},
     },
     broker_connection_retry_on_startup=True,
+    # Safety net on top of IGClient's per-request timeout (audit AUDIT-2.md
+    # M7): with worker_prefetch_multiplier=1, a task that never raises just
+    # parks that worker's only slot forever with no operator signal.
+    # Generous enough not to kill a legitimately large scrape -- this is a
+    # backstop, not a normal-case limit.
+    task_soft_time_limit=settings.celery_task_soft_time_limit_seconds,
+    task_time_limit=settings.celery_task_time_limit_seconds,
 )
 
 

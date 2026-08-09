@@ -23,7 +23,7 @@ async def require_api_key(api_key: str | None = Security(_API_KEY_HEADER)) -> st
         )
 
     # secrets.compare_digest prevents timing attacks
-    if not secrets.compare_digest(api_key.encode(), settings.api_key.encode()):
+    if not secrets.compare_digest(api_key.encode(), settings.api_key.get_secret_value().encode()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid API key",

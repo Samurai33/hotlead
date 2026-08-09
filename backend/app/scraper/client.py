@@ -63,6 +63,10 @@ class IGClient:
     ):
         self.username = username
         self._cl = Client()
+        # Without this, a dead proxy socket hangs the underlying request
+        # forever -- no exception, no timeout, nothing for Celery to retry
+        # or for an operator to see (audit AUDIT-2.md M7).
+        self._cl.request_timeout = settings.ig_request_timeout_seconds
         if proxy_url:
             self._cl.set_proxy(proxy_url)
         if not session_json:

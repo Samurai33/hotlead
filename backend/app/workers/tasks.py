@@ -5,6 +5,7 @@ Supports pause/resume by checking job.status on every iteration.
 """
 
 import logging
+import random
 from collections.abc import Generator
 
 from celery import shared_task
@@ -17,6 +18,16 @@ from app.scraper.client import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _jittered(base_seconds: int) -> float:
+    """Up to +25% random jitter on a retry countdown (audit AUDIT-2.md M6).
+
+    Without this, a pool-wide rate-limit event retries every in-flight job
+    in lockstep at the exact same instant, hammering the same cooling-down
+    accounts together the moment they reactivate.
+    """
+    return base_seconds * (1 + random.uniform(0, 0.25))
 
 
 def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
@@ -114,18 +125,21 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
 
         except RateLimitExceeded as exc:
             mark_account_cooldown_sync(db, redis, account)
-            logger.warning(f"[Job {job_id}] Rate limit, retry 120s")
-            raise self.retry(exc=exc, countdown=120, max_retries=3)
+            countdown = _jittered(120)
+            logger.warning(f"[Job {job_id}] Rate limit, retry {countdown:.0f}s")
+            raise self.retry(exc=exc, countdown=countdown, max_retries=3)
 
         except AccountChallenged as exc:
             mark_account_challenged_sync(db, redis, account)
-            logger.warning(f"[Job {job_id}] Challenge, retry 300s")
-            raise self.retry(exc=exc, countdown=300, max_retries=2)
+            countdown = _jittered(300)
+            logger.warning(f"[Job {job_id}] Challenge, retry {countdown:.0f}s")
+            raise self.retry(exc=exc, countdown=countdown, max_retries=2)
 
         except AccountFlagged as exc:
             mark_account_challenged_sync(db, redis, account)
-            logger.warning(f"[Job {job_id}] Flagged (FeedbackRequired), retry 300s")
-            raise self.retry(exc=exc, countdown=300, max_retries=2)
+            countdown = _jittered(300)
+            logger.warning(f"[Job {job_id}] Flagged (FeedbackRequired), retry {countdown:.0f}s")
+            raise self.retry(exc=exc, countdown=countdown, max_retries=2)
 
         except SessionExpired:
             # Session is dead — no timed recovery. Do NOT retry; flag for re-onboard.

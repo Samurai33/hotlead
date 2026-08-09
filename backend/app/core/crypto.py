@@ -21,7 +21,7 @@ from app.core.config import get_settings
 @lru_cache
 def _fernet() -> Fernet:
     settings = get_settings()
-    return Fernet(settings.session_encryption_key.encode())
+    return Fernet(settings.session_encryption_key.get_secret_value().encode())
 
 
 class EncryptedText(TypeDecorator):

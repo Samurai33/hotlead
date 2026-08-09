@@ -15,6 +15,7 @@ import pytest
 from instagrapi import Client as RealClient
 from instagrapi.exceptions import FeedbackRequired
 
+from app.core.config import get_settings
 from app.scraper.client import AccountFlagged, IGClient
 
 
@@ -24,6 +25,14 @@ def _make_client() -> IGClient:
         cl = IGClient(username="tester", session_json='{"device_id": "test"}')
     cl._cl.user_id_from_username.return_value = "12345"
     return cl
+
+
+def test_igclient_sets_request_timeout():
+    """audit AUDIT-2.md M7: without this, a dead proxy socket hangs the
+    underlying request forever -- no exception, no timeout, nothing for
+    Celery to retry or an operator to see."""
+    cl = _make_client()
+    assert cl._cl.request_timeout == get_settings().ig_request_timeout_seconds
 
 
 def test_iter_followers_calls_real_instagrapi_signature():

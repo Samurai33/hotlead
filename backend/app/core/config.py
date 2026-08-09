@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,18 +15,19 @@ class Settings(BaseSettings):
     # Database
     database_url: str
     postgres_user: str = "hotlead"
-    postgres_password: str
+    postgres_password: SecretStr
     postgres_db: str = "hotlead"
 
     # Redis
     redis_url: str = "redis://redis:6379/0"
 
-    # Security
-    secret_key: str
-    api_key: str
+    # Security. SecretStr (audit AUDIT-2.md M8) masks these in repr()/tracebacks/
+    # accidental logging -- callers need .get_secret_value() to use the real value.
+    secret_key: SecretStr
+    api_key: SecretStr
     # Fernet key encrypting Account.session_json at rest (audit C2). Generate:
     # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    session_encryption_key: str
+    session_encryption_key: SecretStr
 
     # CORS — tighten in production. Kept as a raw str (not list[str]) so a plain
     # env value like `https://app.com` doesn't crash startup: pydantic-settings
@@ -56,6 +58,18 @@ class Settings(BaseSettings):
     # AUDIT-2.md H1) -- prevents a leaked key/scripting mistake from
     # flooding job creation and mass-triggering cooldowns pool-wide.
     api_rate_limit_per_minute: int = 20
+
+    # Per-request socket timeout for instagrapi calls -- without this, a
+    # dead proxy socket hangs the underlying request forever (audit
+    # AUDIT-2.md M7's "one wedged network call parks a worker forever").
+    ig_request_timeout_seconds: int = 30
+    # Celery task-level safety net on top of the per-request timeout above --
+    # generous enough not to kill a legitimately large scrape (thousands of
+    # followers), but finite so a wedged worker eventually surfaces instead
+    # of parking that worker_prefetch_multiplier=1 slot forever with no
+    # operator signal (audit AUDIT-2.md M7).
+    celery_task_soft_time_limit_seconds: int = 7200
+    celery_task_time_limit_seconds: int = 7500
 
     # App
     log_level: str = "INFO"
