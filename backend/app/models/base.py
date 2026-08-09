@@ -8,8 +8,11 @@ from app.core.database import Base
 
 
 class TimestampMixin:
+    # Indexed (audit AUDIT-2.md M10): jobs/accounts list endpoints and the
+    # default prospects list both `ORDER BY created_at DESC` with nothing to
+    # back it -- a B-tree index serves DESC scans just as well as ASC.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

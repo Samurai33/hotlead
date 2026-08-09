@@ -10,3 +10,8 @@ ignore = ["E501"]
 python_version = "3.12"
 ignore_missing_imports = true
 warn_return_any = false
+# Without this, `mypy app/` run from backend/ (this file's directory) errors
+# immediately with "Source file found twice under different module names"
+# instead of actually type-checking anything -- audit AUDIT-2.md M12 found
+# mypy referenced in tooling but never actually run in CI; this is why.
+explicit_package_bases = true

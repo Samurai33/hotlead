@@ -4,6 +4,7 @@ Celery workers are sync — this module wraps DB/Redis for use inside tasks.
 """
 
 import logging
+import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -74,6 +75,19 @@ def get_job(db: Session, job_id: str):
     return result.scalar_one_or_none()
 
 
+_CREDENTIALS_IN_URL_RE = re.compile(r"://[^/\s@]*@")
+
+
+def _scrub_credentials(text_: str) -> str:
+    """Strip `user:pass@` from any URL-shaped substring (audit AUDIT-2.md M2).
+
+    proxy_url can embed `user:pass@host`; a connection failure's exception
+    text commonly includes it verbatim, and error_message is returned as-is
+    via GET /jobs/{id}.
+    """
+    return _CREDENTIALS_IN_URL_RE.sub("://***@", text_)
+
+
 def update_job_status(
     db: Session,
     job_id: str,
@@ -85,7 +99,7 @@ def update_job_status(
 
     vals = {"status": status, "updated_at": datetime.now(UTC)}
     if error_message is not None:
-        vals["error_message"] = error_message
+        vals["error_message"] = _scrub_credentials(error_message)
     db.execute(update(Job).where(Job.id == uuid.UUID(job_id)).values(**vals))
     if scraped_delta > 0:
         db.execute(

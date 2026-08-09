@@ -53,6 +53,11 @@ jobs:
       - name: Ruff format check
         run: ruff format --check app/ tests/
 
+      - name: Dependency vulnerability scan
+        run: |
+          pip install -q pip-audit
+          pip-audit -r requirements.txt
+
       - name: Migrations apply cleanly
         env:
           DATABASE_URL: postgresql+asyncpg://hotlead:ci_test_password@localhost:5432/hotlead
@@ -94,6 +99,9 @@ jobs:
 
       - name: Install
         run: npm ci --ignore-scripts
+
+      - name: Dependency vulnerability scan
+        run: npm audit --audit-level=high
 
       - name: Lint
         run: npm run lint

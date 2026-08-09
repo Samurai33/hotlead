@@ -42,6 +42,18 @@ async def test_correct_key_accepted(client):
     assert resp.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_baseline_security_headers_present():
+    """audit AUDIT-2.md M11: TLS terminates at Cloudflare, which doesn't add
+    HSTS without an explicit toggle -- no layer in the chain otherwise
+    guarantees these end-to-end."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/health")
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    assert resp.headers["X-Frame-Options"] == "DENY"
+    assert resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+
+
 def test_secrets_are_secretstr_not_plain_str():
     """audit AUDIT-2.md M8: SecretStr masks these in repr()/tracebacks/
     accidental logging -- a plain str secret leaks in a stack trace the

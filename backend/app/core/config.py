@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # would otherwise demand strict JSON for a complex type. Parsed by
     # `cors_origins_list`, which accepts JSON or a comma-separated list.
     cors_origins: str = "http://localhost:3000"
+    # TrustedHostMiddleware allowlist (audit AUDIT-2.md M11). Defaults wide
+    # open ("*") rather than guessing the exact Host Traefik/Cloudflare
+    # Tunnel forward here -- a wrong guess would 400 every request in
+    # production. Tighten to the real domain(s) via env var once confirmed.
+    allowed_hosts: str = "*"
 
     # Scraper
     celery_workers: int = 2
@@ -92,6 +97,10 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 pass
         return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
 
 
 @lru_cache

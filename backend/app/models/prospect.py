@@ -18,6 +18,9 @@ class Prospect(UUIDBase):
         # builds tables purely from model definitions) silently produced a
         # schema missing it (audit H7's "schema authority split").
         UniqueConstraint("job_id", "ig_pk", name="uq_prospects_job_id_ig_pk"),
+        # The prospect export sorts by follower count with nothing to back
+        # it (audit AUDIT-2.md M10).
+        Index("ix_prospects_followers", "followers"),
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(

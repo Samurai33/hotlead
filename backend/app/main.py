@@ -2,8 +2,9 @@ import logging
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1 import router as api_v1_router
 from app.core.config import get_settings
@@ -48,6 +49,25 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["X-API-Key", "Content-Type"],
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Baseline security headers (audit AUDIT-2.md M11).
+
+    TLS terminates at Cloudflare, which doesn't add HSTS without an
+    explicit toggle -- no layer in the chain currently guarantees it
+    end-to-end otherwise. The frontend's Next config already sets these;
+    the backend didn't.
+    """
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if settings.is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
 
 
 @app.get("/health", tags=["ops"])
