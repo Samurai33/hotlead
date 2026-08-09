@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 from sqlalchemy import Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import UUIDBase
 
@@ -46,8 +46,3 @@ class Job(UUIDBase):
 
     # Error details
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # Relationships
-    prospects: Mapped[list["Prospect"]] = relationship(  # noqa: F821
-        back_populates="job", cascade="all, delete-orphan", lazy="dynamic"
-    )

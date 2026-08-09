@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import router as api_v1_router
 from app.core.config import get_settings
-from app.core.database import AsyncSessionLocal, Base, engine
+from app.core.database import AsyncSessionLocal, engine
 from app.core.redis import get_redis_client
 from app.core.security import require_api_key
 
@@ -20,9 +20,14 @@ log = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Alembic-only in production (audit AUDIT-2.md H7): create_all only adds
+    # *missing* tables and never alters existing ones, so it used to be
+    # silently inert -- but it split schema authority. A fresh environment's
+    # tables came from whatever the current models said, not from replaying
+    # the audited migration history, so a migration bug could go undetected
+    # until it was the only path taken. `alembic upgrade head` is run
+    # explicitly as part of every deploy.
     log.info("hotlead.startup", env=settings.environment)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
     log.info("hotlead.shutdown")

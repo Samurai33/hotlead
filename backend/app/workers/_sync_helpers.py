@@ -30,6 +30,21 @@ _sync_engine = create_engine(
 SyncSession = sessionmaker(bind=_sync_engine, autocommit=False, autoflush=False)
 
 
+def dispose_sync_engine() -> None:
+    """Drop the pool's connections (audit AUDIT-2.md H8).
+
+    Called from celery_app.py's worker_process_init handler, right after a
+    Celery worker forks. Today this module is only ever imported lazily
+    (inside _run_scrape, after fork), which is the only reason the classic
+    prefork connection-sharing bug doesn't already bite -- an accident of
+    import order, not a designed guarantee. This makes the fork-safety
+    explicit and robust against a future refactor hoisting that import to
+    module level: even if _sync_engine ends up created pre-fork, every child
+    process discards whatever it inherited and lazily opens its own.
+    """
+    _sync_engine.dispose()
+
+
 @contextmanager
 def get_sync_db() -> Generator[Session, None, None]:
     session = SyncSession()

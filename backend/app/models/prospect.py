@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import UUIDBase
 
@@ -11,6 +11,13 @@ class Prospect(UUIDBase):
     __table_args__ = (
         # Fast lookup by job + email filter
         Index("ix_prospects_job_email", "job_id", "email"),
+        # A resumed/retried job re-walks its last in-flight page (audit M1),
+        # so save_prospect_batch's ON CONFLICT DO NOTHING relies on this
+        # constraint existing. It was previously declared only in Alembic
+        # migration 003, not here -- meaning Base.metadata.create_all (which
+        # builds tables purely from model definitions) silently produced a
+        # schema missing it (audit H7's "schema authority split").
+        UniqueConstraint("job_id", "ig_pk", name="uq_prospects_job_id_ig_pk"),
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(
@@ -34,6 +41,3 @@ class Prospect(UUIDBase):
     is_business: Mapped[bool] = mapped_column(Boolean, default=False)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    # Relationship
-    job: Mapped["Job"] = relationship(back_populates="prospects")  # noqa: F821

@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.signals import worker_process_init
 
 from app.core.config import get_settings
 
@@ -32,3 +33,15 @@ celery_app.conf.update(
     },
     broker_connection_retry_on_startup=True,
 )
+
+
+@worker_process_init.connect
+def _dispose_sync_engine_after_fork(**kwargs) -> None:
+    """Explicit fork-safety hook (audit AUDIT-2.md H8) -- see
+    _sync_helpers.dispose_sync_engine's docstring for why this needs to
+    exist at all. Deferred import so this module itself never becomes the
+    thing that creates the sync engine before fork.
+    """
+    from app.workers._sync_helpers import dispose_sync_engine
+
+    dispose_sync_engine()
