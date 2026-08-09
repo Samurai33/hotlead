@@ -198,7 +198,7 @@ def _make_request_hook(account_id, db: Session, redis_client, max_req: int):
             .where(Account.id == account_id)
             .values(requests_today=Account.requests_today + 1)
         )
-        if int(count) >= max_req - 20:
+        if int(count) >= max_req - settings.ig_rate_limit_margin:
             raise RateLimitExceeded(f"Hourly request cap reached for account {account_id}")
 
     return hook
@@ -220,7 +220,7 @@ def get_account_sync(db: Session, redis_client) -> tuple:
         raise RuntimeError("No active Instagram accounts. Add via /api/v1/accounts.")
     for account in accounts:
         count = int(redis_client.get(_RATE_KEY.format(account.id)) or 0)
-        if count < max_req - 20:
+        if count < max_req - settings.ig_rate_limit_margin:
             client = IGClient(
                 username=account.username,
                 session_json=account.session_json,

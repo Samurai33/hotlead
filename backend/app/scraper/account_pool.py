@@ -52,7 +52,7 @@ async def get_available_client(db: AsyncSession, redis: Redis) -> tuple[Account,
         raise RuntimeError("No active IG accounts. Add via /api/v1/accounts.")
     for account in accounts:
         count = int(await redis.get(_RATE_KEY.format(account_id=account.id)) or 0)
-        if count < settings.ig_max_requests_per_hour - 20:
+        if count < settings.ig_max_requests_per_hour - settings.ig_rate_limit_margin:
             client = IGClient(
                 username=account.username,
                 session_json=account.session_json,

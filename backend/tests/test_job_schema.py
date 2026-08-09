@@ -27,3 +27,13 @@ def test_non_commenters_may_omit_target_post_url():
     payload = JobCreate(profile_username="cozinha4e20", mode="followers")
 
     assert payload.target_post_url is None
+
+
+def test_max_count_defaults_to_none():
+    payload = JobCreate(profile_username="cozinha4e20")
+    assert payload.max_count is None
+
+
+def test_max_count_must_be_positive():
+    with pytest.raises(ValidationError):
+        JobCreate(profile_username="cozinha4e20", max_count=0)

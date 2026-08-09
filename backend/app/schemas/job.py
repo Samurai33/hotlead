@@ -2,15 +2,20 @@ import uuid
 from datetime import datetime
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.job import JobMode
+from app.models.job import JobMode, JobStatus
 
 
 class JobCreate(BaseModel):
     profile_username: str
     mode: JobMode = JobMode.followers
     target_post_url: str | None = None
+    # Optional cap on how many profiles to scrape (unlimited if omitted).
+    # Stored on Job.total_count, which also doubles as the denominator for
+    # the frontend progress bar (audit L6 — this used to be dead: nothing
+    # set it, so scrapes ran unbounded and progress bars had no real total).
+    max_count: int | None = Field(default=None, gt=0)
 
     @field_validator("profile_username")
     @classmethod
@@ -50,8 +55,8 @@ class JobRead(BaseModel):
 
     id: uuid.UUID
     profile_username: str
-    mode: str
-    status: str
+    mode: JobMode
+    status: JobStatus
     total_count: int
     scraped_count: int
     emails_found: int
@@ -68,8 +73,9 @@ class JobListRead(BaseModel):
 
     id: uuid.UUID
     profile_username: str
-    mode: str
-    status: str
+    mode: JobMode
+    status: JobStatus
+    total_count: int
     scraped_count: int
     emails_found: int
     phones_found: int

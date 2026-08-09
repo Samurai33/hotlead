@@ -43,6 +43,13 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
 
         update_job_status(db, job_id, "running")
 
+        # total_count is an optional user-set cap (audit L6 — used to be dead,
+        # nothing set it, so scrapes always ran unbounded). A resume/retry
+        # that already hit the target needs no account at all.
+        if job.total_count and job.scraped_count >= job.total_count:
+            update_job_status(db, job_id, "done")
+            return {"status": "done", "job_id": job_id}
+
         try:
             account, client = get_account_sync(db, redis)
         except RuntimeError as exc:
@@ -50,15 +57,21 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             return {"status": "error", "detail": str(exc)}
 
         try:
-            # start_cursor/on_cursor only apply to followers/following — iter_commenters
-            # has no chunked pagination to resume (audit M2/L8 track that separately).
-            # A pause or a Celery retry re-enters here with job.scrape_cursor already
-            # set from the last completed page, so this naturally resumes instead of
-            # restarting at page 1 (audit M1).
-            kwargs = {}
-            if iterator_name in ("iter_followers", "iter_following"):
-                kwargs["start_cursor"] = job.scrape_cursor
-                kwargs["on_cursor"] = lambda cursor: update_job_cursor(db, job_id, cursor)
+            # Each iterator call counts items yielded *this invocation* from
+            # 0, so on a resume/retry we ask for what's left (total - already
+            # scraped), not the full cap again — otherwise resuming would
+            # blow past the user's requested total.
+            kwargs: dict = {}
+            if job.total_count:
+                kwargs["max_count"] = job.total_count - job.scraped_count
+
+            # All three iterators now take start_cursor/on_cursor (L8 added
+            # real pagination to iter_commenters, which previously had none
+            # to resume). A pause or a Celery retry re-enters here with
+            # job.scrape_cursor already set from the last completed page, so
+            # this naturally resumes instead of restarting at page 1 (M1).
+            kwargs["start_cursor"] = job.scrape_cursor
+            kwargs["on_cursor"] = lambda cursor: update_job_cursor(db, job_id, cursor)
             iterator: Generator = getattr(client, iterator_name)(target, **kwargs)
             batch: list[dict] = []
 

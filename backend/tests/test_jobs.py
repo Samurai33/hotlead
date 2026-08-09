@@ -1,6 +1,25 @@
+import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+async def _create_job(client, **overrides) -> str:
+    payload = {"profile_username": "pausetest_x1", **overrides}
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
+        mock_task.apply_async.return_value = MagicMock(id="celery-task-lifecycle")
+        mock_get_task.return_value = mock_task
+        resp = await client.post("/api/v1/jobs", json=payload)
+    return resp.json()["id"]
+
+
+async def _set_status(db, job_id: str, status: str) -> None:
+    from app.models.job import Job
+
+    job = await db.get(Job, uuid.UUID(job_id))
+    job.status = status
+    await db.commit()
 
 
 @pytest.mark.asyncio
@@ -142,6 +161,104 @@ async def test_list_jobs_slashless_no_redirect(client):
     resp = await client.get("/api/v1/jobs")
     assert resp.status_code == 200
     assert resp.history == []
+
+
+@pytest.mark.asyncio
+async def test_pause_running_job(client, db):
+    job_id = await _create_job(client)
+    await _set_status(db, job_id, "running")
+
+    resp = await client.post(f"/api/v1/jobs/{job_id}/pause")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "paused"
+
+
+@pytest.mark.asyncio
+async def test_pause_non_running_job_rejected(client):
+    # freshly created jobs are "pending", not "running"
+    job_id = await _create_job(client)
+    resp = await client.post(f"/api/v1/jobs/{job_id}/pause")
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_pause_not_found(client):
+    resp = await client.post(f"/api/v1/jobs/{uuid.uuid4()}/pause")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_resume_paused_job_redispatches(client, db):
+    job_id = await _create_job(client)
+    await _set_status(db, job_id, "paused")
+
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
+        mock_task.apply_async.return_value = MagicMock(id="celery-task-resumed")
+        mock_get_task.return_value = mock_task
+        resp = await client.post(f"/api/v1/jobs/{job_id}/resume")
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "pending"
+    mock_task.apply_async.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_resume_non_paused_job_rejected(client):
+    job_id = await _create_job(client)  # "pending", not "paused"
+    resp = await client.post(f"/api/v1/jobs/{job_id}/resume")
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_resume_not_found(client):
+    resp = await client.post(f"/api/v1/jobs/{uuid.uuid4()}/resume")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_job_removes_it(client):
+    job_id = await _create_job(client)
+
+    with patch("app.workers.celery_app.celery_app"):
+        resp = await client.delete(f"/api/v1/jobs/{job_id}")
+    assert resp.status_code == 204
+
+    get_resp = await client.get(f"/api/v1/jobs/{job_id}")
+    assert get_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_job_not_found(client):
+    resp = await client.delete(f"/api/v1/jobs/{uuid.uuid4()}")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_job_revokes_celery_task(client):
+    job_id = await _create_job(client)
+
+    with patch("app.workers.celery_app.celery_app") as mock_celery_app:
+        resp = await client.delete(f"/api/v1/jobs/{job_id}")
+
+    assert resp.status_code == 204
+    mock_celery_app.control.revoke.assert_called_once_with(
+        "celery-task-lifecycle", terminate=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_job_with_max_count_sets_total_count(client):
+    job_id = await _create_job(client, max_count=250)
+    resp = await client.get(f"/api/v1/jobs/{job_id}")
+    assert resp.json()["total_count"] == 250
+
+
+@pytest.mark.asyncio
+async def test_create_job_without_max_count_defaults_total_count_zero(client):
+    job_id = await _create_job(client)
+    resp = await client.get(f"/api/v1/jobs/{job_id}")
+    assert resp.json()["total_count"] == 0
 
 
 @pytest.mark.asyncio

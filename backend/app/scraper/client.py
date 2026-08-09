@@ -157,8 +157,20 @@ class IGClient:
             if not next_cursor:
                 break
 
-    def iter_commenters(self, post_url: str, max_count: int = 0) -> Generator[dict, None, None]:
-        """Yield unique users who commented on a post. Deduplicates by user PK."""
+    def iter_commenters(
+        self,
+        post_url: str,
+        max_count: int = 0,
+        start_cursor: str | None = None,
+        on_cursor: Callable[[str | None], None] | None = None,
+    ) -> Generator[dict, None, None]:
+        """Yield unique users who commented on a post. Deduplicates by user PK.
+
+        Paginates via media_comments_chunk instead of one amount-capped
+        media_comments call, which used to cap silently at 500 with no way
+        to go further (audit L8). start_cursor/on_cursor mirror
+        iter_followers/iter_following for resume support (audit M1).
+        """
         self._delay()
         try:
             media_pk = self._cl.media_pk_from_url(post_url)
@@ -172,26 +184,37 @@ class IGClient:
             raise ProfileNotFound(f"Cannot resolve post URL: {exc}")
 
         seen_pks: set[str] = set()
-        fetch_amount = max_count if max_count else 500
+        next_cursor = start_cursor
+        scraped = 0
 
-        self._delay()
-        try:
-            comments = self._cl.media_comments(media_pk, amount=fetch_amount)
-        except (RateLimitError, PleaseWaitFewMinutes):
-            raise RateLimitExceeded(f"Rate limit on @{self.username}")
-        except ChallengeRequired:
-            raise AccountChallenged(f"Challenge on @{self.username}")
-        except LoginRequired:
-            raise SessionExpired(f"Session expired for @{self.username}")
+        while True:
+            if max_count and scraped >= max_count:
+                break
+            self._delay()
+            try:
+                comments, next_cursor = self._cl.media_comments_chunk(
+                    media_pk, max_amount=50, min_id=next_cursor
+                )
+            except (RateLimitError, PleaseWaitFewMinutes):
+                raise RateLimitExceeded(f"Rate limit on @{self.username}")
+            except ChallengeRequired:
+                raise AccountChallenged(f"Challenge on @{self.username}")
+            except LoginRequired:
+                raise SessionExpired(f"Session expired for @{self.username}")
+            if on_cursor:
+                on_cursor(next_cursor)
 
-        for comment in comments:
-            pk = str(comment.user.pk)
-            if pk in seen_pks:
-                continue
-            seen_pks.add(pk)
-            yield self._normalize_short(comment.user)
-            if max_count and len(seen_pks) >= max_count:
-                return
+            for comment in comments:
+                pk = str(comment.user.pk)
+                if pk in seen_pks:
+                    continue
+                seen_pks.add(pk)
+                yield self._normalize_short(comment.user)
+                scraped += 1
+                if max_count and scraped >= max_count:
+                    return
+            if not next_cursor:
+                break
 
     def get_updated_session(self) -> str:
         return json.dumps(self._cl.get_settings())

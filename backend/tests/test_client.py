@@ -9,7 +9,7 @@ kwarg and this bug (present since the code was first written, not just the
 2.1.2->2.18.1 dependency bump) would stay invisible to tests forever.
 """
 
-from unittest.mock import create_autospec, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
 from instagrapi import Client as RealClient
@@ -71,6 +71,65 @@ def test_iter_followers_on_cursor_called_per_page():
     list(cl.iter_followers("someprofile", on_cursor=seen_cursors.append))
 
     assert seen_cursors == ["page_2_cursor", ""]
+
+
+def _commenter(pk: int, username: str):
+    user = MagicMock(pk=pk, username=username, full_name=None, is_private=False, is_verified=False)
+    return MagicMock(user=user)
+
+
+def test_iter_commenters_paginates_beyond_single_chunk():
+    """audit L8: commenters used to cap silently at 500 (one media_comments
+    call, no pagination). Now walks pages via media_comments_chunk like the
+    other two iterators."""
+    cl = _make_client()
+    cl._cl.media_pk_from_url.return_value = "media123"
+    cl._cl.media_comments_chunk.side_effect = [
+        ([_commenter(1, "u1")], "cursor_2"),
+        ([_commenter(2, "u2")], ""),
+    ]
+
+    result = list(cl.iter_commenters("https://www.instagram.com/p/ABC/"))
+
+    assert [r["username"] for r in result] == ["u1", "u2"]
+    assert cl._cl.media_comments_chunk.call_count == 2
+    _, kwargs = cl._cl.media_comments_chunk.call_args_list[0]
+    assert kwargs.get("min_id") is None
+
+
+def test_iter_commenters_dedupes_by_pk():
+    cl = _make_client()
+    cl._cl.media_pk_from_url.return_value = "media123"
+    dup = _commenter(1, "dup")
+    cl._cl.media_comments_chunk.return_value = ([dup, dup], "")
+
+    result = list(cl.iter_commenters("https://www.instagram.com/p/ABC/"))
+    assert len(result) == 1
+
+
+def test_iter_commenters_resumes_from_start_cursor():
+    cl = _make_client()
+    cl._cl.media_pk_from_url.return_value = "media123"
+    cl._cl.media_comments_chunk.return_value = ([], "")
+
+    list(cl.iter_commenters("https://www.instagram.com/p/ABC/", start_cursor="saved_min_id"))
+
+    _, kwargs = cl._cl.media_comments_chunk.call_args
+    assert kwargs.get("min_id") == "saved_min_id"
+
+
+def test_iter_commenters_respects_max_count_across_pages():
+    cl = _make_client()
+    cl._cl.media_pk_from_url.return_value = "media123"
+    cl._cl.media_comments_chunk.side_effect = [
+        ([_commenter(1, "u1"), _commenter(2, "u2")], "cursor_2"),
+        ([_commenter(3, "u3")], ""),
+    ]
+
+    result = list(cl.iter_commenters("https://www.instagram.com/p/ABC/", max_count=2))
+
+    assert [r["username"] for r in result] == ["u1", "u2"]
+    assert cl._cl.media_comments_chunk.call_count == 1
 
 
 @pytest.mark.parametrize("bad_kwargs", [{"next_cursor": "x"}])

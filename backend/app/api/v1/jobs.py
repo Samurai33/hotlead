@@ -75,6 +75,7 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
         profile_username=payload.profile_username.lstrip("@"),
         mode=payload.mode,
         target_post_url=payload.target_post_url,
+        total_count=payload.max_count or 0,
     )
     db.add(job)
     await db.commit()
