@@ -117,6 +117,34 @@ async def test_list_jobs_empty(client):
 
 
 @pytest.mark.asyncio
+async def test_create_job_slashless_no_redirect(client):
+    """Regression guard: POST /api/v1/jobs (no trailing slash) must hit the
+    route directly, not 307-redirect to /api/v1/jobs/. In production Traefik
+    reports scheme=http to this app (TLS terminates at the Cloudflare edge),
+    so that redirect's Location was http://... — browsers block that as mixed
+    content, breaking job creation outright. httpx's ASGI transport doesn't
+    care about scheme, so only `resp.history` (the redirect hop itself)
+    catches this — status 201 alone would pass even with the old bug."""
+    with patch("app.api.v1.jobs._get_task_for_mode") as mock_get_task:
+        mock_task = MagicMock()
+        mock_task.apply_async.return_value = MagicMock(id="celery-task-noredirect")
+        mock_get_task.return_value = mock_task
+        resp = await client.post(
+            "/api/v1/jobs",
+            json={"profile_username": "noredirecttest", "mode": "followers"},
+        )
+    assert resp.status_code == 201
+    assert resp.history == []
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_slashless_no_redirect(client):
+    resp = await client.get("/api/v1/jobs")
+    assert resp.status_code == 200
+    assert resp.history == []
+
+
+@pytest.mark.asyncio
 async def test_requires_api_key(client):
     from httpx import ASGITransport, AsyncClient
 

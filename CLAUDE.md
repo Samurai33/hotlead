@@ -110,12 +110,16 @@ GET    /health                            healthcheck (no auth)
 GET    /docs                              Swagger (dev only)
 ```
 
-> Collection routes are declared `@router.get("/")` / `.post("/")`, so the **real** paths
-> are `/api/v1/jobs/` and `/api/v1/accounts/` (trailing slash). The slashless form
-> 307-redirects — clients that don't re-send `X-API-Key` on redirect will see a 401.
-> `commenters` mode requires `target_post_url`. Export auth is header-only (the `?api_key=`
-> query param the frontend builds is **not** read by the backend — export via `<a download>`
-> currently 401s; see [docs/AUDIT.md](docs/AUDIT.md)).
+> Collection routes (`POST`/`GET` on `/jobs` and `/accounts`) are registered at both `""`
+> and `"/"` — no redirect either way. This isn't just the header-drop risk audit M3
+> described: Traefik reports `scheme=http` to this app (TLS is terminated at the
+> Cloudflare edge, outside Coolify's/Traefik's reach), so a `redirect_slashes` 307 for
+> the bare path used to build a `Location: http://...` — which browsers block as mixed
+> content on this https-served frontend, breaking job/account creation outright.
+> `commenters` mode requires `target_post_url`. Export auth is header-only, checked via
+> `X-API-Key` — the frontend fetches with that header and saves the response as a Blob
+> (audit H4; the `?api_key=` query param approach was rejected, it'd land the key in
+> proxy/edge access logs).
 
 ## File structure
 

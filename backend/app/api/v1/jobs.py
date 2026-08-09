@@ -60,6 +60,14 @@ def _get_task_args(job: Job) -> list[str]:
     return [str(job.id), job.profile_username]
 
 
+# Registered at both "" and "/": Traefik reports scheme=http to this app (TLS
+# is terminated at the Cloudflare edge, outside Coolify's reach — see
+# CLAUDE.md), so Starlette's redirect_slashes 307 for the bare path builds a
+# Location: http://... URL. Browsers block that as mixed content on this
+# https-served frontend. Matching both forms outright means no redirect ever
+# happens, sidestepping the bad Location instead of trying to fix scheme
+# detection through the proxy chain (audit M3).
+@router.post("", response_model=JobRead, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
 async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     """Create a new scraping job."""
@@ -84,6 +92,7 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     return job
 
 
+@router.get("", response_model=list[JobListRead])
 @router.get("/", response_model=list[JobListRead])
 async def list_jobs(db: AsyncSession = Depends(get_db)):
     """List all jobs ordered by creation date."""

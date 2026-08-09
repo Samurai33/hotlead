@@ -11,6 +11,10 @@ from app.schemas.account import AccountCreate, AccountRead
 router = APIRouter()
 
 
+# Registered at both "" and "/" — see the comment on jobs.create_job for why
+# (Traefik reports scheme=http here, so the redirect_slashes 307 for the bare
+# path points at http://, which browsers block as mixed content).
+@router.post("", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
 async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)):
     """
@@ -37,6 +41,7 @@ async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)
     return account
 
 
+@router.get("", response_model=list[AccountRead])
 @router.get("/", response_model=list[AccountRead])
 async def list_accounts(db: AsyncSession = Depends(get_db)):
     """List all accounts in the pool with their current status."""

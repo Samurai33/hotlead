@@ -76,3 +76,23 @@ async def test_delete_account(client):
 async def test_delete_nonexistent(client):
     resp = await client.delete(f"/api/v1/accounts/{uuid.uuid4()}")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_account_slashless_no_redirect(client):
+    """Regression guard, same reasoning as test_jobs.test_create_job_slashless_no_redirect:
+    a 307 hop here used to carry a Location: http://... that real browsers block as mixed
+    content (Traefik reports scheme=http; TLS terminates at the Cloudflare edge)."""
+    resp = await client.post(
+        "/api/v1/accounts",
+        json={"username": "noredirect_acc_x1", "session_json": '{"device_id": "test"}'},
+    )
+    assert resp.status_code == 201
+    assert resp.history == []
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_slashless_no_redirect(client):
+    resp = await client.get("/api/v1/accounts")
+    assert resp.status_code == 200
+    assert resp.history == []
