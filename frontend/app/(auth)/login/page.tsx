@@ -1,46 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { setApiKey, hasApiKey } from "@/lib/auth";
+import { useActionState, useState } from "react";
+import { loginAction, type LoginState } from "./actions";
 import { Flame, Loader2, Eye, EyeOff } from "lucide-react";
 
+const initialState: LoginState = { error: null };
+
 export default function LoginPage() {
-  const router = useRouter();
-  const [key, setKey]         = useState("");
-  const [show, setShow]       = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-
-  useEffect(() => {
-    if (hasApiKey()) router.replace("/");
-  }, [router]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!key.trim()) return;
-    setLoading(true);
-    setError(null);
-
-    // Validate the key against the backend before saving
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/health`,
-        { headers: { "X-API-Key": key.trim() } },
-      );
-      if (res.status === 401 || res.status === 403) {
-        setError("API key inválida. Verifique e tente novamente.");
-        setLoading(false);
-        return;
-      }
-      setApiKey(key.trim());
-      router.replace("/");
-    } catch {
-      // If backend is unreachable, save the key anyway — will fail on first request
-      setApiKey(key.trim());
-      router.replace("/");
-    }
-  }
+  const [show, setShow] = useState(false);
+  const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -54,18 +22,17 @@ export default function LoginPage() {
           <p className="text-sm text-text-muted mt-1">Insira sua API key para continuar</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card space-y-4">
+        <form action={formAction} className="card space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1.5">
               API Key
             </label>
             <div className="relative">
               <input
+                name="key"
                 type={show ? "text" : "password"}
                 className="input pr-10 font-mono text-xs"
                 placeholder="sua-api-key-aqui"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
                 autoFocus
                 required
               />
@@ -84,19 +51,19 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {error && (
+          {state.error && (
             <p className="text-xs text-status-error bg-status-error/10 px-3 py-2 rounded-md">
-              {error}
+              {state.error}
             </p>
           )}
 
           <button
             type="submit"
-            disabled={loading || !key.trim()}
+            disabled={pending}
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
-            {loading && <Loader2 size={14} className="animate-spin" />}
-            {loading ? "Verificando..." : "Entrar"}
+            {pending && <Loader2 size={14} className="animate-spin" />}
+            {pending ? "Verificando..." : "Entrar"}
           </button>
         </form>
       </div>

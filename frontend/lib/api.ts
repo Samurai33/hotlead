@@ -1,18 +1,19 @@
-import { getApiKey, redirectToLogin } from "@/lib/auth";
+// Client-side fetcher for the Client Components that still poll live data
+// (job detail, jobs list refresh, accounts list refresh, prospects
+// filtering). Goes through the same-origin /api/proxy Route Handler instead
+// of the backend directly — the browser holds only the httpOnly session
+// cookie (sent automatically, same-origin default), never the raw API key
+// (audit AUDIT-2.md M1). Mutations (create/pause/resume/delete) moved to
+// Server Actions — see app/jobs/new/actions.ts and app/jobs/[id]/actions.ts.
+import type {
+  Job,
+  JobSummary,
+  JobMode,
+  Prospect,
+  Account,
+} from "@/lib/types";
 
-function resolveApiUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  // The origin is served over http (Coolify/Traefik) and Cloudflare terminates
-  // TLS at the edge, so the baked value can be http://<public-host>. The app is
-  // served over https, so upgrade any non-local http URL to https — otherwise
-  // the browser blocks the API calls as mixed content.
-  if (raw.startsWith("http://") && !/(localhost|127\.0\.0\.1)/.test(raw)) {
-    return raw.replace(/^http:\/\//, "https://");
-  }
-  return raw;
-}
-
-const API_URL = resolveApiUrl();
+const PROXY_PREFIX = "/api/proxy";
 
 class ApiError extends Error {
   constructor(
@@ -24,15 +25,20 @@ class ApiError extends Error {
   }
 }
 
+function redirectToLogin(): void {
+  if (typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${PROXY_PREFIX}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": getApiKey(),
       ...options.headers,
     },
   });
@@ -55,110 +61,31 @@ async function request<T>(
 
 // ─── Jobs ─────────────────────────────────────────────────────
 
-export type JobMode = "followers" | "following" | "commenters";
-export type JobStatus = "pending" | "running" | "paused" | "done" | "error";
-
-export interface Job {
-  id: string;
-  profile_username: string;
-  mode: JobMode;
-  status: JobStatus;
-  total_count: number;
-  scraped_count: number;
-  emails_found: number;
-  phones_found: number;
-  target_post_url: string | null;
-  celery_task_id: string | null;
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface JobSummary {
-  id: string;
-  profile_username: string;
-  mode: JobMode;
-  status: JobStatus;
-  total_count: number;
-  scraped_count: number;
-  emails_found: number;
-  phones_found: number;
-  created_at: string;
-}
-
 export const jobsApi = {
   list: () => request<JobSummary[]>("/api/v1/jobs"),
   get: (id: string) => request<Job>(`/api/v1/jobs/${id}`),
-  create: (data: {
-    profile_username: string;
-    mode?: JobMode;
-    target_post_url?: string;
-    max_count?: number;
-  }) => request<Job>("/api/v1/jobs", { method: "POST", body: JSON.stringify(data) }),
-  pause: (id: string) =>
-    request<Job>(`/api/v1/jobs/${id}/pause`, { method: "POST" }),
-  resume: (id: string) =>
-    request<Job>(`/api/v1/jobs/${id}/resume`, { method: "POST" }),
-  delete: (id: string) =>
-    request<void>(`/api/v1/jobs/${id}`, { method: "DELETE" }),
-  // The export route is only guarded by the router-level X-API-Key header dep
-  // (no query-param auth — the key would end up in browser history and
-  // proxy/edge access logs). So this fetches with the header and hands back a
-  // Blob for the caller to save, instead of a plain URL an <a href download>
-  // could hit unauthenticated (audit H4).
-  exportBlob: async (
-    id: string,
-    fmt: "csv" | "json" = "csv",
-    filters?: { has_email?: boolean; has_phone?: boolean },
-  ): Promise<{ blob: Blob; filename: string }> => {
-    const qs = new URLSearchParams({ fmt });
-    if (filters?.has_email) qs.set("has_email", "true");
-    if (filters?.has_phone) qs.set("has_phone", "true");
-
-    const res = await fetch(`${API_URL}/api/v1/jobs/${id}/export?${qs}`, {
-      headers: { "X-API-Key": getApiKey() },
-    });
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) redirectToLogin();
-      throw new ApiError(res.status, `HTTP ${res.status}`);
-    }
-
-    const disposition = res.headers.get("content-disposition") ?? "";
-    const match = disposition.match(/filename="([^"]+)"/);
-    const filename = match?.[1] ?? `hotlead_export.${fmt}`;
-
-    return { blob: await res.blob(), filename };
-  },
 };
 
-/** Triggers a browser save-as for a Blob obtained from an authenticated fetch. */
-export function saveBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+/**
+ * Plain URL for the export download — hit with a normal `<a href>` so the
+ * browser handles the save-as natively using the backend's
+ * Content-Disposition header. The proxy route attaches X-API-Key from the
+ * httpOnly cookie server-side; the browser's same-origin GET carries the
+ * cookie automatically, same as any other /api/proxy call (audit H4: still
+ * header-only auth, never a `?api_key=` query param).
+ */
+export function exportHref(
+  id: string,
+  fmt: "csv" | "json",
+  filters?: { has_email?: boolean; has_phone?: boolean },
+): string {
+  const qs = new URLSearchParams({ fmt });
+  if (filters?.has_email) qs.set("has_email", "true");
+  if (filters?.has_phone) qs.set("has_phone", "true");
+  return `${PROXY_PREFIX}/api/v1/jobs/${id}/export?${qs}`;
 }
 
 // ─── Prospects ────────────────────────────────────────────────
-
-export interface Prospect {
-  id: string;
-  username: string;
-  full_name: string | null;
-  email: string | null;
-  phone: string | null;
-  website: string | null;
-  biography: string | null;
-  followers: number;
-  following: number;
-  is_business: boolean;
-  is_verified: boolean;
-  created_at: string;
-}
 
 export const prospectsApi = {
   list: (
@@ -176,28 +103,11 @@ export const prospectsApi = {
 
 // ─── Accounts ─────────────────────────────────────────────────
 
-export type AccountStatus = "active" | "cooldown" | "session_expired" | "banned";
-
-export interface Account {
-  id: string;
-  username: string;
-  proxy_url: string;
-  status: AccountStatus;
-  requests_today: number;
-  last_used_at: string | null;
-  cooldown_until: string | null;
-  created_at: string;
-}
-
 export const accountsApi = {
   list: () => request<Account[]>("/api/v1/accounts"),
-  add: (data: { username: string; session_json: string; proxy_url: string }) =>
-    request<Account>("/api/v1/accounts", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
   remove: (id: string) =>
     request<void>(`/api/v1/accounts/${id}`, { method: "DELETE" }),
 };
 
 export { ApiError };
+export type { JobMode, Prospect, Account };

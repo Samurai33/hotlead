@@ -1,11 +1,13 @@
 import useSWR from "swr";
-import { jobsApi, type Job, type JobSummary } from "@/lib/api";
+import { jobsApi } from "@/lib/api";
+import type { Job, JobSummary } from "@/lib/types";
 
-export function useJob(id: string | null) {
+export function useJob(id: string | null, fallbackData?: Job) {
   const { data, error, mutate } = useSWR<Job>(
     id ? `job-${id}` : null,
     () => jobsApi.get(id!),
     {
+      fallbackData,
       refreshInterval(data) {
         // Poll every 3s while running, stop when terminal
         if (!data) return 3000;
@@ -23,11 +25,11 @@ export function useJob(id: string | null) {
   };
 }
 
-export function useJobs() {
+export function useJobs(fallbackData?: JobSummary[]) {
   const { data, error, mutate } = useSWR<JobSummary[]>(
     "jobs-list",
     jobsApi.list,
-    { refreshInterval: 5000 },
+    { fallbackData, refreshInterval: 5000 },
   );
 
   return {

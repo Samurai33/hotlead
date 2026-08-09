@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { prospectsApi, jobsApi, saveBlob, type Prospect } from "@/lib/api";
+import { prospectsApi, jobsApi, exportHref, type Prospect } from "@/lib/api";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { ArrowLeft, Download, Mail, Phone, Globe, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -14,8 +14,6 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
   const [hasEmail, setHasEmail] = useState<boolean | null>(null);
   const [hasPhone, setHasPhone] = useState<boolean | null>(null);
   const [page, setPage] = useState(0);
-  const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
 
   const { data: job }       = useSWR(`job-${jobId}`, () => jobsApi.get(jobId));
   const { data: prospects, isLoading } = useSWR(
@@ -29,21 +27,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
     { keepPreviousData: true },
   );
 
-  async function handleExport(fmt: "csv" | "json") {
-    setExportError(null);
-    setExporting(fmt);
-    try {
-      const { blob, filename } = await jobsApi.exportBlob(jobId, fmt, {
-        has_email: hasEmail ?? undefined,
-        has_phone: hasPhone ?? undefined,
-      });
-      saveBlob(blob, filename);
-    } catch (err: any) {
-      setExportError(err.detail ?? "Erro ao exportar");
-    } finally {
-      setExporting(null);
-    }
-  }
+  const exportFilters = { has_email: hasEmail ?? undefined, has_phone: hasPhone ?? undefined };
 
   return (
     <div className="min-h-screen bg-background">
@@ -63,28 +47,20 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleExport("csv")}
-            disabled={exporting !== null}
-            className="btn-ghost text-xs flex items-center gap-1.5 disabled:opacity-50"
+          <a
+            href={exportHref(jobId, "csv", exportFilters)}
+            className="btn-ghost text-xs flex items-center gap-1.5"
           >
-            <Download size={12} /> {exporting === "csv" ? "Exportando…" : "CSV"}
-          </button>
-          <button
-            onClick={() => handleExport("json")}
-            disabled={exporting !== null}
-            className="btn-ghost text-xs flex items-center gap-1.5 disabled:opacity-50"
+            <Download size={12} /> CSV
+          </a>
+          <a
+            href={exportHref(jobId, "json", exportFilters)}
+            className="btn-ghost text-xs flex items-center gap-1.5"
           >
-            <Download size={12} /> {exporting === "json" ? "Exportando…" : "JSON"}
-          </button>
+            <Download size={12} /> JSON
+          </a>
         </div>
       </header>
-
-      {exportError && (
-        <div className="px-6 pt-4 max-w-7xl mx-auto">
-          <p className="text-xs text-red-500">{exportError}</p>
-        </div>
-      )}
 
       <main className="px-6 py-4 max-w-7xl mx-auto">
         {/* Filters */}
