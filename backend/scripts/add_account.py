@@ -64,6 +64,13 @@ def main():
     parser.add_argument("username", help="Instagram username (without @)")
     parser.add_argument("--proxy", default=None, help="Proxy URL (REQUIRED, see --allow-no-proxy)")
     parser.add_argument(
+        "--locale",
+        default=None,
+        help="instagrapi locale matching the proxy's country, e.g. pt_BR, en_US "
+        "(audit AUDIT-2.md M5 — instagrapi's own set_locale() docstring recommends "
+        "this). Applied before login so the very first session already matches.",
+    )
+    parser.add_argument(
         "--allow-no-proxy",
         action="store_true",
         help="Local testing only. Every proxy-less account shares this host's IP with "
@@ -101,6 +108,9 @@ def main():
         if args.proxy:
             cl.set_proxy(args.proxy)
             print(f"   Using proxy: {args.proxy}")
+        if args.locale:
+            cl.set_locale(args.locale)
+            print(f"   Using locale: {args.locale}")
 
         try:
             cl.login(username, password)
@@ -151,7 +161,12 @@ def main():
         resp = httpx.post(
             f"{api_url}/api/v1/accounts/",
             headers={"X-API-Key": api_key, "Content-Type": "application/json"},
-            json={"username": username, "session_json": session_json, "proxy_url": args.proxy},
+            json={
+                "username": username,
+                "session_json": session_json,
+                "proxy_url": args.proxy,
+                "locale": args.locale,
+            },
             follow_redirects=True,
         )
         resp.raise_for_status()

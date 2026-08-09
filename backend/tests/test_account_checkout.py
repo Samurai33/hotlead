@@ -77,6 +77,21 @@ def test_checkout_sets_lease_and_last_used_at(mock_igclient, sync_db):
 
 
 @patch("app.workers._sync_helpers.IGClient")
+def test_checkout_passes_account_locale_to_igclient(mock_igclient, sync_db):
+    """audit AUDIT-2.md M5: the account's locale (geo-matched to its proxy)
+    must reach IGClient so it can set_locale()/set_country() on the
+    instagrapi session -- a mismatched device/IP geography is itself a
+    detection signal."""
+    _make_account(sync_db, username="checkout_locale_x1", locale="pt_BR")
+    mock_igclient.return_value = MagicMock()
+
+    get_account_sync(sync_db, _Redis())
+
+    _, kwargs = mock_igclient.call_args
+    assert kwargs.get("locale") == "pt_BR"
+
+
+@patch("app.workers._sync_helpers.IGClient")
 def test_leased_account_excluded_from_checkout(mock_igclient, sync_db):
     _make_account(
         sync_db,

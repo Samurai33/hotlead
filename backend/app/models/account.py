@@ -32,6 +32,15 @@ class Account(UUIDBase):
     # isolating it to one account.
     proxy_url: Mapped[str] = mapped_column(String(500), nullable=False)
 
+    # Optional instagrapi locale (e.g. "pt_BR", "en_US") matching the proxy's
+    # geography. instagrapi's own set_locale() docstring recommends this;
+    # nothing enforced it before (audit AUDIT-2.md M5) -- a device whose
+    # locale/timezone doesn't match its egress IP's country is itself a
+    # detection signal, compounding the multi-accounting risk C1 addresses.
+    # NULL = instagrapi's built-in default (en_US), same as before this field
+    # existed.
+    locale: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
     # Status
     status: Mapped[str] = mapped_column(String(20), default=AccountStatus.active, index=True)
 

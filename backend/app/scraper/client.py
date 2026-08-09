@@ -59,6 +59,7 @@ class IGClient:
         username: str,
         session_json: str | None,
         proxy_url: str | None = None,
+        locale: str | None = None,
         request_hook: Callable[[], None] | None = None,
     ):
         self.username = username
@@ -82,6 +83,16 @@ class IGClient:
         # doesn't execute the real body) -- every account is loaded from a
         # stored session, so this broke every job run against a real account.
         self._cl.set_settings(json.loads(session_json))
+        if locale:
+            # Must run after set_settings(): set_locale() patches the locale
+            # substring into the already-loaded user_agent, and also derives
+            # set_country() from the "_"-separated region (e.g. "pt_BR" ->
+            # country "BR") -- geo-matching the device to whatever country
+            # the account's proxy is assigned to (audit AUDIT-2.md M5). The
+            # account's locale is the source of truth here, not whatever was
+            # saved in the session, in case the proxy assignment changed
+            # since the session was created.
+            self._cl.set_locale(locale)
         # Called once per real IG request, before the mandatory delay — lets the
         # caller enforce a per-request rate cap (audit H2) instead of the account
         # only being counted once at checkout.

@@ -44,6 +44,7 @@ async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)
         username=payload.username.lstrip("@"),
         session_json=payload.session_json,
         proxy_url=payload.proxy_url,
+        locale=payload.locale,
         status=AccountStatus.active,
     )
     db.add(account)

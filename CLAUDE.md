@@ -83,7 +83,8 @@ created_at
 ### Account
 ```
 id, username, session_json (NO password),
-proxy_url, status (active|cooldown|session_expired|banned),
+proxy_url, locale (optional, e.g. pt_BR — geo-matches device to proxy country),
+status (active|cooldown|session_expired|banned),
 requests_today, last_used_at, cooldown_until,
 created_at, updated_at
 ```

@@ -11,6 +11,9 @@ class AccountCreate(BaseModel):
     # IP with every other proxy-less account, which reads to Instagram as
     # one IP running multiple sessions.
     proxy_url: str
+    # Optional instagrapi locale (e.g. "pt_BR") matching the proxy's country
+    # -- geo-matches the device to its egress IP (audit AUDIT-2.md M5).
+    locale: str | None = None
 
 
 class AccountRead(BaseModel):
@@ -19,6 +22,7 @@ class AccountRead(BaseModel):
     id: uuid.UUID
     username: str
     proxy_url: str
+    locale: str | None
     status: str
     requests_today: int
     last_used_at: datetime | None

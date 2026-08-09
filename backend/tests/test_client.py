@@ -43,6 +43,23 @@ def test_igclient_loads_session_via_set_settings_not_load_settings():
     cl._cl.load_settings.assert_not_called()
 
 
+def test_igclient_applies_locale_after_loading_session():
+    """audit AUDIT-2.md M5: geo-match the device to the account's proxy.
+    set_locale() must run after set_settings() -- it patches the locale
+    substring into the already-loaded user_agent and derives set_country()
+    from it, so calling it first would have nothing to patch."""
+    with patch("app.scraper.client.Client") as mock_cls:
+        mock_cls.return_value = create_autospec(RealClient, instance=True)
+        cl = IGClient(username="tester", session_json='{"device_id": "test"}', locale="pt_BR")
+
+    cl._cl.set_locale.assert_called_once_with("pt_BR")
+
+
+def test_igclient_skips_locale_when_not_provided():
+    cl = _make_client()
+    cl._cl.set_locale.assert_not_called()
+
+
 def test_igclient_sets_request_timeout():
     """audit AUDIT-2.md M7: without this, a dead proxy socket hangs the
     underlying request forever -- no exception, no timeout, nothing for

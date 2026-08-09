@@ -295,6 +295,7 @@ def get_account_sync(db: Session, redis_client) -> tuple:
                 username=account.username,
                 session_json=account.session_json,
                 proxy_url=account.proxy_url,
+                locale=account.locale,
                 request_hook=_make_request_hook(
                     account.id, db, redis_client, max_req, lease_duration
                 ),
