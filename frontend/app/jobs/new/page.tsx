@@ -22,7 +22,7 @@ function isInstagramMediaUrl(value: string) {
       ["http:", "https:"].includes(url.protocol) &&
       (host === "instagram.com" || host.endsWith(".instagram.com")) &&
       parts.length >= 2 &&
-      ["p", "reel", "tv"].includes(parts[0])
+      ["p", "reel", "tv"].includes(parts[0] ?? "")
     );
   } catch {
     return false;

@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { accountsApi, type Account } from "@/lib/api";
+import { accountsApi, type Account, type AccountStatus } from "@/lib/api";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { ArrowLeft, Trash2, RefreshCw, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { useState } from "react";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle }> = {
+// Keyed by the full AccountStatus union (not Record<string, ...>) so indexing
+// with account.status is exhaustively covered by the compiler -- no
+// possibly-undefined fallback needed (audit AUDIT-2.md L9).
+const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; icon: typeof CheckCircle }> = {
   active:          { label: "Ativo",             color: "text-green-400",  icon: CheckCircle },
   cooldown:        { label: "Cooldown",          color: "text-yellow-400", icon: Clock },
   session_expired: { label: "Sessão expirada",   color: "text-orange-400", icon: AlertCircle },
@@ -16,7 +19,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
 
 function AccountCard({ account, onDelete }: { account: Account; onDelete: () => void }) {
   const [deleting, setDeleting] = useState(false);
-  const cfg = STATUS_CONFIG[account.status] ?? STATUS_CONFIG.active;
+  const cfg = STATUS_CONFIG[account.status];
   const Icon = cfg.icon;
 
   async function handleDelete() {
@@ -34,7 +37,7 @@ function AccountCard({ account, onDelete }: { account: Account; onDelete: () => 
     <div className="card flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-full bg-surface-elevated flex items-center justify-center font-mono text-sm text-brand font-semibold">
-          {account.username[0].toUpperCase()}
+          {account.username.charAt(0).toUpperCase()}
         </div>
         <div>
           <p className="font-mono text-sm font-medium text-text">@{account.username}</p>
