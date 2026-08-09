@@ -242,9 +242,7 @@ async def test_delete_job_revokes_celery_task(client):
         resp = await client.delete(f"/api/v1/jobs/{job_id}")
 
     assert resp.status_code == 204
-    mock_celery_app.control.revoke.assert_called_once_with(
-        "celery-task-lifecycle", terminate=True
-    )
+    mock_celery_app.control.revoke.assert_called_once_with("celery-task-lifecycle", terminate=True)
 
 
 @pytest.mark.asyncio
