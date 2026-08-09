@@ -1,7 +1,14 @@
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# .env.example documents `openssl rand -hex 32` (32 bytes hex-encoded = 64
+# chars) but nothing enforced it -- a rushed self-host could set a weak or
+# placeholder value and never notice (audit AUDIT-2.md L4). This is a floor,
+# not the recommended length: it only catches obviously-weak values like
+# "changeme" or a short word, not a mediocre-but-plausible-looking secret.
+_MIN_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -79,6 +86,17 @@ class Settings(BaseSettings):
     # App
     log_level: str = "INFO"
     environment: str = "development"
+
+    @model_validator(mode="after")
+    def _check_secret_entropy(self) -> "Settings":
+        for field in ("secret_key", "api_key"):
+            value = getattr(self, field).get_secret_value()
+            if len(value) < _MIN_SECRET_LENGTH:
+                raise ValueError(
+                    f"{field} is only {len(value)} chars -- looks like a weak/placeholder "
+                    f"value, not a real secret. Generate one with: openssl rand -hex 32"
+                )
+        return self
 
     @property
     def is_production(self) -> bool:

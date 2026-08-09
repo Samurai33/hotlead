@@ -43,7 +43,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
+    # Auth is the X-API-Key header, not cookies -- credentialed CORS buys
+    # nothing and only widens blast radius if cors_origins is ever mis-set
+    # (audit AUDIT-2.md L3). Revisit only if cookie-based auth lands (M1).
+    allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["X-API-Key", "Content-Type"],
 )
