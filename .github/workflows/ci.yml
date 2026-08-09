@@ -53,6 +53,9 @@ jobs:
       - name: Ruff format check
         run: ruff format --check app/ tests/
 
+      - name: Type check
+        run: mypy app/
+
       - name: Dependency vulnerability scan
         run: |
           pip install -q pip-audit
