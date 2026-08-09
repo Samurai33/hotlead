@@ -3,7 +3,6 @@ Synchronous DB and Redis helpers for Celery tasks.
 Celery workers are sync — this module wraps DB/Redis for use inside tasks.
 """
 
-import logging
 import re
 import uuid
 from collections.abc import Generator
@@ -11,13 +10,14 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 import redis as sync_redis
+import structlog
 from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 from app.scraper.client import IGClient, RateLimitExceeded
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 # Sync engine (psycopg2) — separate from FastAPI's async engine (asyncpg)
@@ -313,7 +313,9 @@ def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
     account.status = AccountStatus.cooldown
     account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
     db.commit()
-    logger.warning(f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min")
+    logger.warning(
+        "account.cooldown", username=account.username, minutes=settings.ig_cooldown_minutes
+    )
 
 
 def mark_account_challenged_sync(db: Session, redis_client, account) -> None:
@@ -332,15 +334,19 @@ def mark_account_challenged_sync(db: Session, redis_client, account) -> None:
         account.status = AccountStatus.banned
         account.cooldown_until = None
         logger.error(
-            f"[{account.username}] Banned after {account.challenge_streak} "
-            "consecutive challenges/flags"
+            "account.banned",
+            username=account.username,
+            challenge_streak=account.challenge_streak,
         )
     else:
         account.status = AccountStatus.cooldown
         account.cooldown_until = datetime.now(UTC) + timedelta(minutes=settings.ig_cooldown_minutes)
         logger.warning(
-            f"[{account.username}] Cooldown {settings.ig_cooldown_minutes}min "
-            f"(challenge streak {account.challenge_streak}/{settings.ig_challenge_streak_limit})"
+            "account.cooldown",
+            username=account.username,
+            minutes=settings.ig_cooldown_minutes,
+            challenge_streak=account.challenge_streak,
+            challenge_streak_limit=settings.ig_challenge_streak_limit,
         )
     db.commit()
 
@@ -352,7 +358,7 @@ def mark_account_session_expired_sync(db: Session, account) -> None:
     account.status = AccountStatus.session_expired
     account.cooldown_until = None
     db.commit()
-    logger.error(f"[{account.username}] Session expired — re-onboard via add_account.py")
+    logger.error("account.session_expired", username=account.username)
 
 
 def save_session_sync(db: Session, account, client: IGClient) -> None:

@@ -4,11 +4,11 @@ Anti-ban: mandatory random delay, session-only auth, batch pagination.
 """
 
 import json
-import logging
 import random
 import time
 from collections.abc import Callable, Generator
 
+import structlog
 from instagrapi import Client
 from instagrapi.exceptions import (
     ChallengeRequired,
@@ -22,7 +22,7 @@ from instagrapi.exceptions import (
 from app.core.config import get_settings
 from app.scraper.extractor import extract_email, extract_phone, extract_website
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 
@@ -97,7 +97,7 @@ class IGClient:
         # caller enforce a per-request rate cap (audit H2) instead of the account
         # only being counted once at checkout.
         self._request_hook = request_hook
-        logger.info(f"[{username}] Session loaded")
+        logger.info("scraper.session_loaded", username=username)
 
     def get_user_id(self, username: str) -> str:
         self._delay()

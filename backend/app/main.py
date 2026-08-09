@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 
 import structlog
@@ -9,13 +8,12 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.api.v1 import router as api_v1_router
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal, engine
+from app.core.logging import configure_logging
 from app.core.redis import get_redis_client
 from app.core.security import require_api_key
 
 settings = get_settings()
-structlog.configure(
-    wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(settings.log_level))
-)
+configure_logging()
 log = structlog.get_logger()
 
 

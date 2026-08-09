@@ -2,8 +2,10 @@ from celery import Celery
 from celery.signals import worker_process_init
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 
 settings = get_settings()
+configure_logging()
 
 _broker_url = settings.redis_url
 _result_backend = settings.redis_url

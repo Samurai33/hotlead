@@ -4,10 +4,10 @@ Processes users in batches of 50, checkpointing after each batch.
 Supports pause/resume by checking job.status on every iteration.
 """
 
-import logging
 import random
 from collections.abc import Generator
 
+import structlog
 from celery import shared_task
 
 from app.scraper.client import (
@@ -17,7 +17,7 @@ from app.scraper.client import (
     SessionExpired,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _jittered(base_seconds: int) -> float:
@@ -50,12 +50,12 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
         update_job_status,
     )
 
-    logger.info(f"[Job {job_id}] Starting ({iterator_name}): {target}")
+    logger.info("job.starting", job_id=job_id, mode=iterator_name, target=target)
 
     with get_sync_db() as db, get_sync_redis() as redis:
         job = get_job(db, job_id)
         if not job:
-            logger.error(f"[Job {job_id}] Not found")
+            logger.error("job.not_found", job_id=job_id)
             return {"status": "error", "detail": "Job not found"}
 
         update_job_status(db, job_id, "running")
@@ -95,7 +95,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             for user_data in iterator:
                 current = get_job(db, job_id)
                 if current and current.status == "paused":
-                    logger.info(f"[Job {job_id}] Paused gracefully")
+                    logger.info("job.paused", job_id=job_id)
                     if batch:
                         result = save_prospect_batch(db, job_id, batch)
                         update_job_status(db, job_id, "paused", scraped_delta=result["inserted"])
@@ -107,7 +107,10 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
                     result = save_prospect_batch(db, job_id, batch)
                     update_job_status(db, job_id, "running", scraped_delta=result["inserted"])
                     logger.info(
-                        f"[Job {job_id}] Batch saved: {result['inserted']}/{len(batch)} new"
+                        "job.batch_saved",
+                        job_id=job_id,
+                        inserted=result["inserted"],
+                        batch_size=len(batch),
                     )
                     batch = []
 
@@ -118,7 +121,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             final = get_job(db, job_id)
             if final and final.status != "paused":
                 update_job_status(db, job_id, "done")
-                logger.info(f"[Job {job_id}] Done")
+                logger.info("job.done", job_id=job_id)
 
             save_session_sync(db, account, client)
             return {"status": "done", "job_id": job_id}
@@ -126,31 +129,51 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
         except RateLimitExceeded as exc:
             mark_account_cooldown_sync(db, redis, account)
             countdown = _jittered(120)
-            logger.warning(f"[Job {job_id}] Rate limit, retry {countdown:.0f}s")
+            logger.warning(
+                "job.rate_limited",
+                job_id=job_id,
+                account_id=str(account.id),
+                retry_seconds=round(countdown),
+            )
             raise self.retry(exc=exc, countdown=countdown, max_retries=3)
 
         except AccountChallenged as exc:
             mark_account_challenged_sync(db, redis, account)
             countdown = _jittered(300)
-            logger.warning(f"[Job {job_id}] Challenge, retry {countdown:.0f}s")
+            logger.warning(
+                "job.challenged",
+                job_id=job_id,
+                account_id=str(account.id),
+                retry_seconds=round(countdown),
+            )
             raise self.retry(exc=exc, countdown=countdown, max_retries=2)
 
         except AccountFlagged as exc:
             mark_account_challenged_sync(db, redis, account)
             countdown = _jittered(300)
-            logger.warning(f"[Job {job_id}] Flagged (FeedbackRequired), retry {countdown:.0f}s")
+            logger.warning(
+                "job.flagged",
+                job_id=job_id,
+                account_id=str(account.id),
+                retry_seconds=round(countdown),
+            )
             raise self.retry(exc=exc, countdown=countdown, max_retries=2)
 
         except SessionExpired:
             # Session is dead — no timed recovery. Do NOT retry; flag for re-onboard.
             mark_account_session_expired_sync(db, account)
             msg = f"Session expired for @{account.username} — re-onboard via add_account.py"
-            logger.error(f"[Job {job_id}] {msg}")
+            logger.error(
+                "job.session_expired",
+                job_id=job_id,
+                account_id=str(account.id),
+                username=account.username,
+            )
             update_job_status(db, job_id, "error", error_message=msg)
             return {"status": "error", "detail": msg}
 
         except Exception as exc:
-            logger.exception(f"[Job {job_id}] Error: {exc}")
+            logger.exception("job.error", job_id=job_id, error=str(exc))
             update_job_status(db, job_id, "error", error_message=str(exc)[:500])
             raise
 
