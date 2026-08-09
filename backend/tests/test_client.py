@@ -27,6 +27,22 @@ def _make_client() -> IGClient:
     return cl
 
 
+def test_igclient_loads_session_via_set_settings_not_load_settings():
+    """instagrapi's load_settings(path) does open(path) internally -- passing
+    it an already-parsed dict (what session_json becomes here) raises
+    TypeError before a single request is made, since every account here is
+    loaded from a stored session (never cl.login()). set_settings(dict) is
+    the dict-accepting half of what load_settings does after its own
+    open()+json.load(). Autospec alone doesn't catch this (a Mock doesn't
+    execute the real open() call), hence the explicit assertion."""
+    with patch("app.scraper.client.Client") as mock_cls:
+        mock_cls.return_value = create_autospec(RealClient, instance=True)
+        cl = IGClient(username="tester", session_json='{"device_id": "test"}')
+
+    cl._cl.set_settings.assert_called_once_with({"device_id": "test"})
+    cl._cl.load_settings.assert_not_called()
+
+
 def test_igclient_sets_request_timeout():
     """audit AUDIT-2.md M7: without this, a dead proxy socket hangs the
     underlying request forever -- no exception, no timeout, nothing for

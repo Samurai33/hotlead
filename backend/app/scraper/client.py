@@ -71,7 +71,17 @@ class IGClient:
             self._cl.set_proxy(proxy_url)
         if not session_json:
             raise ValueError(f"No session for @{username}. Use add_account.py first.")
-        self._cl.load_settings(json.loads(session_json))
+        # set_settings(), not load_settings(): the latter takes a PATH and does
+        # open(path) internally -- calling it with an already-parsed dict (what
+        # every caller here has, from a DB column or a file already read)
+        # raises TypeError before a single request is ever made. set_settings()
+        # is the dict-accepting half of what load_settings does after the
+        # open()+json.load(). This is the exact class of instagrapi
+        # signature/version mismatch the M1 cursor-kwarg fix already caught
+        # once (both un-caught by mocked tests, since a MagicMock/autospec
+        # doesn't execute the real body) -- every account is loaded from a
+        # stored session, so this broke every job run against a real account.
+        self._cl.set_settings(json.loads(session_json))
         # Called once per real IG request, before the mandatory delay — lets the
         # caller enforce a per-request rate cap (audit H2) instead of the account
         # only being counted once at checkout.
