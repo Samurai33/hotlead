@@ -49,7 +49,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href={`/jobs/${jobId}`} className="btn-ghost p-1.5">
+          <Link href={`/jobs/${jobId}`} className="btn-ghost p-1.5" aria-label="Voltar ao job">
             <ArrowLeft size={15} />
           </Link>
           <div>
@@ -171,6 +171,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
               className="btn-ghost p-1.5 disabled:opacity-30"
+              aria-label="Página anterior"
             >
               <ChevronLeft size={14} />
             </button>
@@ -178,6 +179,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
               onClick={() => setPage(p => p + 1)}
               disabled={!prospects || prospects.length < PAGE_SIZE}
               className="btn-ghost p-1.5 disabled:opacity-30"
+              aria-label="Próxima página"
             >
               <ChevronRight size={14} />
             </button>

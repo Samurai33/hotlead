@@ -49,6 +49,7 @@ export default function DashboardPage() {
             onClick={handleLogout}
             className="btn-ghost text-sm p-2 text-text-muted hover:text-status-error"
             title="Sair"
+            aria-label="Sair"
           >
             <LogOut size={14} />
           </button>
@@ -125,7 +126,14 @@ export default function DashboardPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {job.total_count > 0 ? (
-                          <div className="w-16 bg-surface h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="w-16 bg-surface h-1.5 rounded-full overflow-hidden"
+                            role="progressbar"
+                            aria-label={`Progresso de @${job.profile_username}`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={progressPct(job.scraped_count, job.total_count)}
+                          >
                             <div
                               className="h-full bg-brand rounded-full transition-all"
                               style={{ width: `${progressPct(job.scraped_count, job.total_count)}%` }}

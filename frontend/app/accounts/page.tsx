@@ -76,6 +76,7 @@ function AccountCard({ account, onDelete }: { account: Account; onDelete: () => 
           disabled={deleting}
           className="btn-ghost text-status-error hover:text-status-error p-1.5"
           title="Remover conta"
+          aria-label={`Remover conta @${account.username}`}
         >
           <Trash2 size={13} />
         </button>
@@ -99,7 +100,7 @@ export default function AccountsPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="btn-ghost p-1.5">
+          <Link href="/" className="btn-ghost p-1.5" aria-label="Voltar ao dashboard">
             <ArrowLeft size={15} />
           </Link>
           <div>

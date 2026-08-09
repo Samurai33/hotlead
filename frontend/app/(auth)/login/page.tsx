@@ -73,7 +73,8 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShow((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text transition-colors"
-                tabIndex={-1}
+                aria-label={show ? "Ocultar API key" : "Mostrar API key"}
+                aria-pressed={show}
               >
                 {show ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>

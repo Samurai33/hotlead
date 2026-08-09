@@ -100,7 +100,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <Download size={13} /> Ver Prospects
             </Link>
           )}
-          <button onClick={handleDelete} className="btn-ghost text-sm text-status-error hover:text-status-error">
+          <button
+            onClick={handleDelete}
+            className="btn-ghost text-sm text-status-error hover:text-status-error"
+            aria-label="Deletar job"
+            title="Deletar job"
+          >
             <Trash2 size={14} />
           </button>
         </div>
@@ -112,7 +117,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           <span className="text-xs text-text-muted">Progresso</span>
           <span className="text-xs font-mono text-text-secondary">{pct}%</span>
         </div>
-        <div className="w-full bg-surface-elevated h-2 rounded-full overflow-hidden">
+        <div
+          className="w-full bg-surface-elevated h-2 rounded-full overflow-hidden"
+          role="progressbar"
+          aria-label="Progresso do job"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+        >
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               job.status === "error" ? "bg-status-error" : "bg-brand"
