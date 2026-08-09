@@ -7,6 +7,7 @@ persist it. No real Postgres/Redis needed.
 """
 
 import uuid
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 import fakeredis
@@ -20,7 +21,7 @@ def _hook(max_req: int = 200):
     redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
     db = MagicMock()
     account_id = uuid.uuid4()
-    hook = _make_request_hook(account_id, db, redis_client, max_req)
+    hook = _make_request_hook(account_id, db, redis_client, max_req, timedelta(minutes=15))
     return hook, db, redis_client, account_id
 
 

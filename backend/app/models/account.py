@@ -46,3 +46,9 @@ class Account(UUIDBase):
     # cooldown -> active -> cooldown forever on an account IG has already
     # flagged (audit AUDIT-2.md H3).
     challenge_streak: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Self-healing checkout lease (audit AUDIT-2.md H4). Set at checkout time
+    # and renewed on every real IG request; a crashed worker's account
+    # becomes claimable again once this passes instead of sticking to it
+    # forever. NULL means not currently leased.
+    leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

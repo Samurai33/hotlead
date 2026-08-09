@@ -174,7 +174,9 @@ def reactivate_cooldown_accounts_sync(db: Session) -> None:
 _RATE_KEY = "hotlead:ratelimit:{}"
 
 
-def _make_request_hook(account_id, db: Session, redis_client, max_req: int):
+def _make_request_hook(
+    account_id, db: Session, redis_client, max_req: int, lease_duration: timedelta
+):
     """Build the IGClient request_hook for one checkout (audit H2).
 
     Fires once per real IG API call (see IGClient._delay): increments the
@@ -183,6 +185,14 @@ def _make_request_hook(account_id, db: Session, redis_client, max_req: int):
     RateLimitExceeded once the account crosses the cap so a single long job
     can't blow past the hourly limit; the existing except-block in
     workers/tasks.py already cools the account down and retries on this.
+
+    Also renews the checkout lease (audit H4) on every real request, so a
+    live job never loses its account mid-run — only a worker that stops
+    making requests (crash, kill -9) lets the lease expire. Not committed
+    here — same piggyback-on-the-next-natural-commit reasoning as
+    update_job_cursor: requests fire far more often than the ~150s-worst-case
+    gap between batch commits, which is still trivially inside the
+    multi-minute lease window.
     """
     from app.models.account import Account
 
@@ -196,7 +206,10 @@ def _make_request_hook(account_id, db: Session, redis_client, max_req: int):
         db.execute(
             update(Account)
             .where(Account.id == account_id)
-            .values(requests_today=Account.requests_today + 1)
+            .values(
+                requests_today=Account.requests_today + 1,
+                leased_until=datetime.now(UTC) + lease_duration,
+            )
         )
         if int(count) >= max_req - settings.ig_rate_limit_margin:
             raise RateLimitExceeded(f"Hourly request cap reached for account {account_id}")
@@ -205,15 +218,40 @@ def _make_request_hook(account_id, db: Session, redis_client, max_req: int):
 
 
 def get_account_sync(db: Session, redis_client) -> tuple:
+    """Claim the least-recently-used active account for exclusive use.
+
+    `FOR UPDATE SKIP LOCKED` makes the claim atomic: two workers racing this
+    query never walk away with the same row, because a row locked by one
+    transaction is invisible to the other's SELECT instead of being read and
+    raced on afterward (audit AUDIT-2.md H4 — the old SELECT-then-later-UPDATE
+    let concurrent jobs grab the same "idle" account for a job's entire
+    duration). `leased_until` extends that protection past the single SELECT:
+    it's set here and renewed by the request_hook on every real IG call, so
+    the row stays excluded from other checkouts for as long as the job is
+    actually alive, and self-frees if the worker crashes without clearing it.
+
+    All candidate rows returned by the query stay locked until this
+    transaction commits or rolls back — including ones we look at but don't
+    claim (rate-limited) — so every exit path below must commit before
+    returning/raising, or those accounts stay locked for other workers until
+    the caller's own commit (which can be a whole job later).
+    """
     from app.models.account import Account, AccountStatus
 
     reactivate_cooldown_accounts_sync(db)
 
     max_req = settings.ig_max_requests_per_hour
+    lease_duration = timedelta(minutes=settings.ig_account_lease_minutes)
+    now = datetime.now(UTC)
+
     result = db.execute(
         select(Account)
-        .where(Account.status == AccountStatus.active)
+        .where(
+            Account.status == AccountStatus.active,
+            (Account.leased_until.is_(None)) | (Account.leased_until <= now),
+        )
         .order_by(Account.last_used_at.nullsfirst())
+        .with_for_update(skip_locked=True)
     )
     accounts = result.scalars().all()
     if not accounts:
@@ -221,13 +259,19 @@ def get_account_sync(db: Session, redis_client) -> tuple:
     for account in accounts:
         count = int(redis_client.get(_RATE_KEY.format(account.id)) or 0)
         if count < max_req - settings.ig_rate_limit_margin:
+            account.leased_until = now + lease_duration
+            account.last_used_at = now
+            db.commit()
             client = IGClient(
                 username=account.username,
                 session_json=account.session_json,
                 proxy_url=account.proxy_url,
-                request_hook=_make_request_hook(account.id, db, redis_client, max_req),
+                request_hook=_make_request_hook(
+                    account.id, db, redis_client, max_req, lease_duration
+                ),
             )
             return account, client
+    db.commit()  # release FOR UPDATE on the rate-limited rows we're not claiming
     raise RuntimeError("All accounts hit rate limits. Retry after 1 hour.")
 
 
@@ -285,4 +329,9 @@ def save_session_sync(db: Session, account, client: IGClient) -> None:
     account.session_json = client.get_updated_session()
     account.last_used_at = datetime.now(UTC)
     account.challenge_streak = 0
+    # Account stays 'active' after a successful run, so leased_until (unlike
+    # status) is the only thing keeping it excluded from checkout — clear it
+    # now instead of leaving the pool an account short until the lease times
+    # out on its own (audit AUDIT-2.md H4).
+    account.leased_until = None
     db.commit()

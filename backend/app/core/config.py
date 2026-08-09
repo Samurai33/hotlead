@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     # Consecutive ChallengeRequired/FeedbackRequired hits before an account is
     # permanently banned instead of re-cooling-down forever (audit AUDIT-2.md H3).
     ig_challenge_streak_limit: int = 3
+    # Checkout lease TTL: renewed on every real IG request, so a live job never
+    # loses it; only needs margin over ig_request_delay_max, not the whole job
+    # duration. A crashed worker's account self-frees once this passes instead
+    # of sticking to it forever (audit AUDIT-2.md H4).
+    ig_account_lease_minutes: int = 15
 
     # App
     log_level: str = "INFO"
