@@ -6,6 +6,7 @@ it -- this file builds its own client with the real dependency wired in
 instead, and drives api_rate_limit_per_minute down so the test stays fast.
 """
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,7 +19,8 @@ from app.core.database import get_db
 from app.core.redis import get_redis_client
 from app.main import app
 
-TEST_API_KEY = "test-api-key-1234"
+# Matches conftest.py's own fallback -- CI sets a different API_KEY value.
+TEST_API_KEY = os.getenv("API_KEY", "test-api-key-1234")
 
 
 @pytest.fixture(autouse=True)
