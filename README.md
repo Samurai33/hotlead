@@ -381,7 +381,8 @@ All configuration is via environment variables. **Never hardcode secrets.**
 | `POSTGRES_PASSWORD` | Database password | *(generate with openssl)* |
 | `POSTGRES_DB` | Database name | `hotlead` |
 | `DATABASE_URL` | Full async DB URL | `postgresql+asyncpg://...` |
-| `REDIS_URL` | Redis connection | `redis://redis:6379/0` |
+| `REDIS_PASSWORD` | Redis auth password (broker + rate-limit counters) | *(generate with openssl)* |
+| `REDIS_URL` | Redis connection, same password as `REDIS_PASSWORD` | `redis://:CHANGE_ME@redis:6379/0` |
 | `SECRET_KEY` | App signing secret | *(generate with openssl)* |
 | `API_KEY` | Frontend→Backend auth key (`X-API-Key`) | *(generate with openssl)* |
 | `CORS_ORIGINS` | Allowed frontend origin(s), JSON or CSV | `https://hotlead.n3xus.dev` |
@@ -409,7 +410,8 @@ POSTGRES_DB=hotlead
 DATABASE_URL=postgresql+asyncpg://hotlead:CHANGE_ME@postgres:5432/hotlead
 
 # ─── Redis ────────────────────────────────────────────
-REDIS_URL=redis://redis:6379/0
+REDIS_PASSWORD=CHANGE_ME
+REDIS_URL=redis://:CHANGE_ME@redis:6379/0
 
 # ─── Application ──────────────────────────────────────
 SECRET_KEY=CHANGE_ME_generate_with_openssl_rand_hex_32
