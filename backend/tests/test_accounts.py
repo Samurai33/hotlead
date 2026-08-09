@@ -10,6 +10,7 @@ async def test_add_account(client):
         json={
             "username": "test_account_x1",
             "session_json": '{"device_id": "test"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
         },
     )
     assert resp.status_code == 201
@@ -19,12 +20,24 @@ async def test_add_account(client):
 
 
 @pytest.mark.asyncio
+async def test_add_account_without_proxy_rejected(client):
+    """audit C1: a proxy-less account shares the deployment host's IP with every
+    other proxy-less account — a multi-accounting signal to Instagram."""
+    resp = await client.post(
+        "/api/v1/accounts",
+        json={"username": "no_proxy_acc_x1", "session_json": '{"device_id": "test"}'},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_add_duplicate_account(client):
     await client.post(
         "/api/v1/accounts",
         json={
             "username": "duplicate_acc_x1",
             "session_json": '{"device_id": "test1"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
         },
     )
     resp = await client.post(
@@ -32,6 +45,7 @@ async def test_add_duplicate_account(client):
         json={
             "username": "duplicate_acc_x1",
             "session_json": '{"device_id": "test2"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
         },
     )
     assert resp.status_code == 409
@@ -51,11 +65,34 @@ async def test_session_json_never_exposed(client):
         json={
             "username": "secret_acc_x1",
             "session_json": '{"password_equivalent": "NEVER_LEAK_THIS"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
         },
     )
     assert resp.status_code == 201
     assert "NEVER_LEAK_THIS" not in resp.text
     assert "session_json" not in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_session_json_encrypted_at_rest(client, db):
+    """audit C2: session_json must never be stored in plaintext."""
+    from sqlalchemy import text
+
+    plaintext = '{"password_equivalent": "NEVER_STORE_PLAINTEXT"}'
+    resp = await client.post(
+        "/api/v1/accounts",
+        json={
+            "username": "encrypted_acc_x1",
+            "session_json": plaintext,
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
+        },
+    )
+    acc_id = resp.json()["id"]
+
+    raw = await db.execute(text("SELECT session_json FROM accounts WHERE id = :id"), {"id": acc_id})
+    stored = raw.scalar_one()
+    assert stored != plaintext
+    assert "NEVER_STORE_PLAINTEXT" not in stored
 
 
 @pytest.mark.asyncio
@@ -65,6 +102,7 @@ async def test_delete_account(client):
         json={
             "username": "to_delete_x1",
             "session_json": '{"device_id": "test"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
         },
     )
     acc_id = add.json()["id"]
@@ -85,7 +123,11 @@ async def test_add_account_slashless_no_redirect(client):
     content (Traefik reports scheme=http; TLS terminates at the Cloudflare edge)."""
     resp = await client.post(
         "/api/v1/accounts",
-        json={"username": "noredirect_acc_x1", "session_json": '{"device_id": "test"}'},
+        json={
+            "username": "noredirect_acc_x1",
+            "session_json": '{"device_id": "test"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
+        },
     )
     assert resp.status_code == 201
     assert resp.history == []

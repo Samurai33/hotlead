@@ -181,7 +181,7 @@ export type AccountStatus = "active" | "cooldown" | "session_expired" | "banned"
 export interface Account {
   id: string;
   username: string;
-  proxy_url: string | null;
+  proxy_url: string;
   status: AccountStatus;
   requests_today: number;
   last_used_at: string | null;
@@ -191,7 +191,7 @@ export interface Account {
 
 export const accountsApi = {
   list: () => request<Account[]>("/api/v1/accounts"),
-  add: (data: { username: string; session_json: string; proxy_url?: string }) =>
+  add: (data: { username: string; session_json: string; proxy_url: string }) =>
     request<Account>("/api/v1/accounts", {
       method: "POST",
       body: JSON.stringify(data),

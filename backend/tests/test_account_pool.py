@@ -19,6 +19,7 @@ async def _add(db, **kw):
         username=kw.pop("username"),
         session_json=kw.pop("session_json", '{"device_id": "test"}'),
         status=kw.pop("status", AccountStatus.active),
+        proxy_url=kw.pop("proxy_url", "http://user:pass@proxy.example.com:8080"),
         **kw,
     )
     db.add(acc)

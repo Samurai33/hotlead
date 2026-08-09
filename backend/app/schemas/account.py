@@ -7,7 +7,10 @@ from pydantic import BaseModel
 class AccountCreate(BaseModel):
     username: str
     session_json: str  # JSON string from instagrapi -- NO password
-    proxy_url: str | None = None
+    # Required (audit C1): a proxy-less account shares the deployment host's
+    # IP with every other proxy-less account, which reads to Instagram as
+    # one IP running multiple sessions.
+    proxy_url: str
 
 
 class AccountRead(BaseModel):
@@ -15,7 +18,7 @@ class AccountRead(BaseModel):
 
     id: uuid.UUID
     username: str
-    proxy_url: str | None
+    proxy_url: str
     status: str
     requests_today: int
     last_used_at: datetime | None

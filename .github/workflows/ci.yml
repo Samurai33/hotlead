@@ -59,6 +59,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-secret-key-for-testing-only
           API_KEY: ci-api-key-for-testing-only
+          SESSION_ENCRYPTION_KEY: d4d-_NP74sDL39hfa4cqLrATj_kHSl8Wd-hWqkyFXsw=
           POSTGRES_PASSWORD: ci_test_password
           ENVIRONMENT: development
         run: alembic upgrade head
@@ -70,6 +71,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-secret-key-for-testing-only
           API_KEY: ci-api-key-for-testing-only
+          SESSION_ENCRYPTION_KEY: d4d-_NP74sDL39hfa4cqLrATj_kHSl8Wd-hWqkyFXsw=
           POSTGRES_PASSWORD: ci_test_password
           ENVIRONMENT: development
         run: pytest tests/ -v --tb=short -x

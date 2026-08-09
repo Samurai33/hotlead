@@ -62,7 +62,14 @@ def _dump_ig_error(cl, exc) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Add Instagram account to HotLead pool")
     parser.add_argument("username", help="Instagram username (without @)")
-    parser.add_argument("--proxy", default=None, help="Proxy URL (STRONGLY recommended)")
+    parser.add_argument("--proxy", default=None, help="Proxy URL (REQUIRED, see --allow-no-proxy)")
+    parser.add_argument(
+        "--allow-no-proxy",
+        action="store_true",
+        help="Local testing only. Every proxy-less account shares this host's IP with "
+        "every other proxy-less account, which reads to Instagram as one IP running "
+        "multiple sessions (audit C1) — never use this for a real pooled account.",
+    )
     args = parser.parse_args()
 
     username = args.username.lstrip("@")
@@ -71,9 +78,14 @@ def main():
     print("   The password is used once to create a session — it is NEVER stored.\n")
 
     if not args.proxy:
-        print("⚠️  No --proxy given. The session will be created from THIS host's IP.")
-        print("   If the account scrapes through a proxy later, the IP mismatch is a")
-        print("   ban signal. Strongly consider re-running with --proxy.\n")
+        if not args.allow_no_proxy:
+            print("❌ --proxy is required. A proxy-less account shares this host's IP with")
+            print("   every other proxy-less account — a multi-accounting signal that can")
+            print("   cascade a ban across the whole pool. Pass --allow-no-proxy to override")
+            print("   for local testing only.")
+            sys.exit(1)
+        print("⚠️  --allow-no-proxy set. The session will be created from THIS host's IP.")
+        print("   Do not use this account against real targets.\n")
 
     password = getpass.getpass(f"Instagram password for @{username}: ")
 

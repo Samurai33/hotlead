@@ -135,7 +135,7 @@ export default function AccountsPage() {
                   Sem contas ativas, o scraping não funciona. Adicione uma conta com:
                 </p>
                 <code className="block mt-2 text-xs bg-surface px-3 py-2 rounded-sm font-mono text-text-secondary">
-                  docker compose exec api python scripts/add_account.py seu_username
+                  docker compose exec api python scripts/add_account.py seu_username --proxy http://user:pass@host:port
                 </code>
               </div>
             </div>
@@ -158,9 +158,11 @@ export default function AccountsPage() {
           <p className="text-xs font-medium text-text-secondary mb-2">Como adicionar conta</p>
           <div className="space-y-1.5 text-xs text-text-muted font-mono">
             <p className="text-text-secondary"># Via script (recomendado — senha não fica em logs)</p>
-            <p>docker compose exec api python scripts/add_account.py @username</p>
-            <p className="text-text-secondary mt-2"># Com proxy</p>
             <p>docker compose exec api python scripts/add_account.py @username --proxy http://user:pass@host:port</p>
+            <p className="text-text-secondary mt-2">
+              --proxy é obrigatório: contas sem proxy dividem o IP do servidor, o que o
+              Instagram lê como múltiplas contas na mesma origem.
+            </p>
           </div>
         </div>
       </main>

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Security
     secret_key: str
     api_key: str
+    # Fernet key encrypting Account.session_json at rest (audit C2). Generate:
+    # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    session_encryption_key: str
 
     # CORS — tighten in production. Kept as a raw str (not list[str]) so a plain
     # env value like `https://app.com` doesn't crash startup: pydantic-settings
