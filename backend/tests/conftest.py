@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.database import Base, get_db
+from app.core.rate_limit import rate_limit_writes
 from app.main import app
 
 TEST_DB_URL = os.getenv(
@@ -39,6 +40,10 @@ async def client(db):
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
+    # The suite creates far more jobs/accounts across its run than any real
+    # caller would in a minute — rate_limit_writes is exercised directly by
+    # test_rate_limit_api.py instead (audit AUDIT-2.md H1).
+    app.dependency_overrides[rate_limit_writes] = lambda: None
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",

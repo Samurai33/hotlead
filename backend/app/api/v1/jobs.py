@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit_writes
 from app.models.job import Job, JobMode, JobStatus
 from app.schemas.job import JobCreate, JobListRead, JobRead
 
@@ -67,8 +68,18 @@ def _get_task_args(job: Job) -> list[str]:
 # https-served frontend. Matching both forms outright means no redirect ever
 # happens, sidestepping the bad Location instead of trying to fix scheme
 # detection through the proxy chain (audit M3).
-@router.post("", response_model=JobRead, status_code=status.HTTP_201_CREATED)
-@router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=JobRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_writes)],
+)
+@router.post(
+    "/",
+    response_model=JobRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_writes)],
+)
 async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
     """Create a new scraping job."""
     job = Job(

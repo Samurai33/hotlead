@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit_writes
 from app.models.account import Account, AccountStatus
 from app.schemas.account import AccountCreate, AccountRead
 
@@ -14,8 +15,18 @@ router = APIRouter()
 # Registered at both "" and "/" — see the comment on jobs.create_job for why
 # (Traefik reports scheme=http here, so the redirect_slashes 307 for the bare
 # path points at http://, which browsers block as mixed content).
-@router.post("", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
-@router.post("/", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=AccountRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_writes)],
+)
+@router.post(
+    "/",
+    response_model=AccountRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_writes)],
+)
 async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)):
     """
     Add an Instagram account to the pool.

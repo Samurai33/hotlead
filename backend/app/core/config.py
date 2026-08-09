@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # of sticking to it forever (audit AUDIT-2.md H4).
     ig_account_lease_minutes: int = 15
 
+    # Per-IP fixed-window cap on POST /jobs and POST /accounts (audit
+    # AUDIT-2.md H1) -- prevents a leaked key/scripting mistake from
+    # flooding job creation and mass-triggering cooldowns pool-wide.
+    api_rate_limit_per_minute: int = 20
+
     # App
     log_level: str = "INFO"
     environment: str = "development"
