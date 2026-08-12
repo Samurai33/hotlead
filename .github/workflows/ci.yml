@@ -116,3 +116,34 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+  docker-build:
+    name: Docker build (backend + frontend)
+    runs-on: ubuntu-latest
+    # Neither the backend nor frontend job above ever builds the Dockerfiles
+    # Coolify actually deploys — a Dockerfile-only breakage (bad COPY path, a
+    # renamed apt package, ARG/ENV ordering) would pass CI green and only
+    # surface when the Coolify deploy itself fails. push:false — this only
+    # proves the images build, it doesn't publish anywhere.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (runner stage)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: runner
+          push: false
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:8000

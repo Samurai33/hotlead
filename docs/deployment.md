@@ -41,6 +41,7 @@ DATABASE_URL=postgresql+asyncpg://hotlead:<POSTGRES_PASSWORD>@hotlead-postgres:5
 REDIS_PASSWORD=<openssl rand -hex 32>
 REDIS_URL=redis://:<mesma REDIS_PASSWORD acima>@hotlead-redis:6379/0
 CORS_ORIGINS=["https://hotlead.n3xus.dev"]
+ALLOWED_HOSTS=hotlead.n3xus.dev,api-hotlead.n3xus.dev
 ENVIRONMENT=production
 LOG_LEVEL=WARNING
 NEXT_PUBLIC_API_URL=https://api-hotlead.n3xus.dev
@@ -53,6 +54,11 @@ NEXT_PUBLIC_API_URL=https://api-hotlead.n3xus.dev
 > **`NEXT_PUBLIC_API_URL` é build arg** do frontend: o Next.js embute o valor no bundle
 > durante o build. Mudou → **Redeploy** (rebuild), não basta restart. Deve ser a URL
 > **pública https** da API. Preencha também a aba **Preview Deployments**.
+>
+> **`ALLOWED_HOSTS`:** o `.env.example` documenta o default `*` (aberto) só para dev
+> local — em produção, **sempre** tranque para os hosts reais (sem porta, sem
+> esquema). O `TrustedHostMiddleware` já lê essa var no código; sem esse valor
+> configurado no Coolify, ela fica sem efeito nenhum.
 
 ### 3. Domínios (http, não https)
 
