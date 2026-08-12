@@ -287,6 +287,39 @@ async def test_create_job_oversized_target_post_url_rejected(client):
 
 
 @pytest.mark.asyncio
+async def test_list_jobs_pagination(client):
+    """audit B5: GET /jobs takes limit/offset like prospects.list_prospects
+    does, instead of a hardcoded limit(100) with no way to page further."""
+    ids = [await _create_job(client, profile_username=f"paginate_job_{i}_x1") for i in range(3)]
+
+    page1 = await client.get("/api/v1/jobs", params={"limit": 2, "offset": 0})
+    assert page1.status_code == 200
+    page1_data = page1.json()
+    assert len(page1_data) == 2
+    # created_at desc -- the two most recently created jobs (ids[2], ids[1])
+    # must be the first page.
+    assert page1_data[0]["id"] == ids[2]
+    assert page1_data[1]["id"] == ids[1]
+
+    page2 = await client.get("/api/v1/jobs", params={"limit": 2, "offset": 2})
+    assert page2.status_code == 200
+    page2_data = page2.json()
+    assert page2_data[0]["id"] == ids[0]
+
+    # No overlap between consecutive pages.
+    assert {j["id"] for j in page1_data}.isdisjoint(j["id"] for j in page2_data)
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_limit_out_of_range_rejected(client):
+    resp = await client.get("/api/v1/jobs", params={"limit": 0})
+    assert resp.status_code == 422
+
+    resp = await client.get("/api/v1/jobs", params={"limit": 501})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_requires_api_key(client):
     from httpx import ASGITransport, AsyncClient
 
