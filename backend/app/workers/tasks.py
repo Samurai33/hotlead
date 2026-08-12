@@ -6,6 +6,7 @@ Supports pause/resume by checking job.status on every iteration.
 
 import random
 from collections.abc import Generator
+from typing import NoReturn
 
 import structlog
 from celery import shared_task
@@ -53,9 +54,17 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
 
     logger.info("job.starting", job_id=job_id, mode=iterator_name, target=target)
 
-    def _retry_or_terminate(exc: Exception, countdown: float, max_retries: int) -> None:
+    def _retry_or_terminate(exc: Exception, countdown: float, max_retries: int) -> NoReturn:
         """Retry the task, or persist a terminal error if the retry budget is
         exhausted (audit S1 / issue #119).
+
+        Always raises -- never returns normally (every path below ends in a
+        `raise`) -- so this is annotated NoReturn rather than None: mypy
+        takes a `-> None` annotation at face value and would otherwise think
+        control could fall through each call site back into _run_scrape's
+        body, breaking the exhaustiveness check for _run_scrape's own
+        `-> dict` return type (the same check the original inline
+        `raise self.retry(...)` used to satisfy before this helper existed).
 
         self.retry(exc=exc, ...) raises a `Retry` signal when a retry is
         successfully scheduled -- but once `max_retries` is exhausted,
