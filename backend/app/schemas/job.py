@@ -8,9 +8,9 @@ from app.models.job import JobMode, JobStatus
 
 
 class JobCreate(BaseModel):
-    profile_username: str
+    profile_username: str = Field(max_length=100)
     mode: JobMode = JobMode.followers
-    target_post_url: str | None = None
+    target_post_url: str | None = Field(default=None, max_length=500)
     # Optional cap on how many profiles to scrape (unlimited if omitted).
     # Stored on Job.total_count, which also doubles as the denominator for
     # the frontend progress bar (audit L6 — this used to be dead: nothing

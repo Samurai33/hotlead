@@ -37,3 +37,27 @@ def test_max_count_defaults_to_none():
 def test_max_count_must_be_positive():
     with pytest.raises(ValidationError):
         JobCreate(profile_username="cozinha4e20", max_count=0)
+
+
+def test_profile_username_over_max_length_rejected():
+    """audit B7: profile_username backs a String(100) column -- oversized
+    input must 422 in Pydantic, not fail at INSERT with StringDataRightTruncation."""
+    with pytest.raises(ValidationError):
+        JobCreate(profile_username="x" * 101)
+
+
+def test_profile_username_at_max_length_accepted():
+    payload = JobCreate(profile_username="x" * 100)
+    assert len(payload.profile_username) == 100
+
+
+def test_target_post_url_over_max_length_rejected():
+    """audit B7: target_post_url backs a String(500) column."""
+    oversized = "https://www.instagram.com/p/" + ("A" * 480) + "/"
+    assert len(oversized) > 500
+    with pytest.raises(ValidationError):
+        JobCreate(
+            profile_username="cozinha4e20",
+            mode="commenters",
+            target_post_url=oversized,
+        )
