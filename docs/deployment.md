@@ -35,6 +35,8 @@ Copie do `.env.example` e preencha (nunca commitar valores reais):
 POSTGRES_PASSWORD=<openssl rand -hex 32>
 SECRET_KEY=<openssl rand -hex 32>
 API_KEY=<openssl rand -hex 32>
+# SESSION_ENCRYPTION_KEY: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+SESSION_ENCRYPTION_KEY=<gerado pelo comando acima>
 DATABASE_URL=postgresql+asyncpg://hotlead:<POSTGRES_PASSWORD>@hotlead-postgres:5432/hotlead
 REDIS_PASSWORD=<openssl rand -hex 32>
 REDIS_URL=redis://:<mesma REDIS_PASSWORD acima>@hotlead-redis:6379/0

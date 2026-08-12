@@ -57,12 +57,15 @@
 **Aceite:** `GET /health` retorna 200 via HTTPS; frontend carrega e autentica com a API key.
 
 ## Fase 4 — Operação: contas, backup e observabilidade (agentes: `devops` + `scraper-specialist`) 🔄 em andamento
-> `scripts/backup.sh` e `uptime.yml` prontos; swap na VM feito. Falta: cron do backup na VM, teste de restore, e contas no pool.
+> `scripts/backup.sh` e `uptime.yml` prontos; swap na VM feito; procedimento de restore
+> documentado no `runbook.md` (inclui a variante "VM do Coolify", sem projeto compose no
+> host — issue #138). Falta, ambos exigindo acesso prático à VM: instalar o cron do
+> backup e executar o teste de restore. Contas no pool também pendentes.
 
 - [ ] Adicionar 2+ contas Instagram ao pool via `/add-account` (contas dedicadas, nunca a pessoal)
 - [ ] Configurar 1 proxy residencial por conta (`proxy_url`)
-- [ ] Agendar `scripts/backup.sh` via cron na VM (diário 03:00 America/Sao_Paulo, retenção 14 dias)
-- [ ] Testar restore do backup em banco temporário (backup não testado = backup inexistente)
+- [ ] Agendar `scripts/backup.sh` via cron na VM (diário 03:00 America/Sao_Paulo, retenção 14 dias) — comando documentado no `runbook.md`, falta executar na VM
+- [ ] Testar restore do backup em banco temporário (procedimento — incluindo a variante Coolify VM — já documentado no `runbook.md`; falta rodar o teste de fato: backup não testado = backup inexistente)
 - [ ] Uptime Kuma (ou monitor do Coolify) apontando para `/health` com alerta
 - [ ] Revisar `docker stats` após 24h e ajustar limites do `docker-compose.prod.yml` se necessário
 

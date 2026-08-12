@@ -33,8 +33,18 @@ crontab -l 2>/dev/null | { cat; echo '0 3 * * * BACKUP_DIR=/var/backups/hotlead 
 
 **Restore:**
 
+Local/dev (existe projeto compose no host):
+
 ```bash
 gunzip -c backups/hotlead_XXXX.sql.gz | docker compose exec -T postgres psql -U hotlead -d hotlead
+```
+
+Na VM do Coolify (sem projeto compose — localizar o container pelo mesmo filtro
+de nome usado no backup, `CONTAINER_FILTER=postgres-<uuid>`):
+
+```bash
+CID="$(docker ps -qf name=postgres-<uuid> | head -n1)"
+gunzip -c backups/hotlead_XXXX.sql.gz | docker exec -i "$CID" psql -U hotlead -d hotlead
 ```
 
 > Teste o restore num banco temporário antes de precisar dele de verdade.
