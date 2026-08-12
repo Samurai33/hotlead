@@ -224,3 +224,112 @@ def test_concurrent_checkout_claims_account_exactly_once(sync_db):
     finally:
         cleanup_db.close()
         engine.dispose()
+
+
+def test_concurrent_checkout_does_not_starve_when_another_account_is_free():
+    """Reproduces audit #122 / S3: an unbounded `FOR UPDATE SKIP LOCKED`
+    SELECT (no LIMIT) locks *every* eligible row the instant it runs, before
+    any Python code inspects a single one. A second, genuinely concurrent
+    checkout racing inside that window would then SKIP LOCKED its way to
+    zero rows and raise "No active Instagram accounts" — even though a
+    second account sits free the entire time.
+
+    Two accounts exist here. Thread A's query claims/locks the older one
+    (last_used_at ordering makes that deterministic) and is blocked mid-check
+    via _BlockingRedis before it commits. Thread B must still be able to
+    claim the *other*, untouched account — proving the fix bounds each
+    query's lock footprint to one row at a time instead of the whole
+    eligible set.
+    """
+    older_username = "checkout_pool_older_x1"
+    newer_username = "checkout_pool_newer_x1"
+    engine = create_engine(_SYNC_URL)
+    Session = sessionmaker(bind=engine)
+    setup_db = Session()
+    try:
+        # Read usernames back into plain locals (not ORM attribute access)
+        # before this session closes below — `sync_db.commit()` expires
+        # loaded attributes by default, and a second commit (for the
+        # "newer" row) would expire "older"'s too, so touching either
+        # object's attributes after close() raises DetachedInstanceError.
+        _make_account(
+            setup_db,
+            username=older_username,
+            last_used_at=datetime.now(UTC) - timedelta(hours=2),
+        )
+        _make_account(
+            setup_db,
+            username=newer_username,
+            last_used_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+    finally:
+        setup_db.close()
+
+    thread_a_holding_lock = threading.Event()
+    thread_a_may_release = threading.Event()
+    results: dict[str, object] = {}
+
+    class _BlockingRedis:
+        """Blocks the FIRST caller's rate-limit check so the second caller's
+        own SELECT FOR UPDATE SKIP LOCKED runs while the older row is still
+        locked (uncommitted) by the first transaction."""
+
+        def get(self, key):
+            thread_a_holding_lock.set()
+            thread_a_may_release.wait(timeout=5)
+            return None
+
+    class _PlainRedis:
+        def get(self, key):
+            return None
+
+    def run_a():
+        db = Session()
+        try:
+            with patch("app.workers._sync_helpers.IGClient", return_value=MagicMock()):
+                account, _client = get_account_sync(db, _BlockingRedis())
+                # Read before closing the session below — the ORM object
+                # becomes detached afterward and can't lazy-refresh attrs.
+                results["a"] = account.username
+        except Exception as exc:  # noqa: BLE001 — captured for the assertion below
+            results["a"] = exc
+        finally:
+            db.rollback()
+            db.close()
+
+    def run_b():
+        assert thread_a_holding_lock.wait(timeout=5), "thread A never reached its lock"
+        db = Session()
+        try:
+            with patch("app.workers._sync_helpers.IGClient", return_value=MagicMock()):
+                account, _client = get_account_sync(db, _PlainRedis())
+                results["b"] = account.username
+        except Exception as exc:  # noqa: BLE001 — captured for the assertion below
+            results["b"] = exc
+        finally:
+            db.rollback()
+            db.close()
+            thread_a_may_release.set()
+
+    ta = threading.Thread(target=run_a)
+    tb = threading.Thread(target=run_b)
+    ta.start()
+    tb.start()
+    ta.join(timeout=10)
+    tb.join(timeout=10)
+
+    # A holds the older row's lock the whole time it's blocked; B must still
+    # be able to claim the newer, untouched account instead of spuriously
+    # raising "No active Instagram accounts".
+    assert results["a"] == older_username
+    assert results["b"] == newer_username
+
+    cleanup_db = Session()
+    try:
+        cleanup_db.query(Account).filter(
+            Account.username.in_(["checkout_pool_older_x1", "checkout_pool_newer_x1"])
+        ).delete(synchronize_session=False)
+        cleanup_db.commit()
+    finally:
+        cleanup_db.close()
+        engine.dispose()

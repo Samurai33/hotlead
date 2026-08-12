@@ -259,11 +259,24 @@ def get_account_sync(db: Session, redis_client) -> tuple:
     the row stays excluded from other checkouts for as long as the job is
     actually alive, and self-frees if the worker crashes without clearing it.
 
-    All candidate rows returned by the query stay locked until this
-    transaction commits or rolls back — including ones we look at but don't
-    claim (rate-limited) — so every exit path below must commit before
-    returning/raising, or those accounts stay locked for other workers until
-    the caller's own commit (which can be a whole job later).
+    Each SELECT is capped with `LIMIT 1` and claims (or skips-past, when
+    rate-limited) exactly one row per iteration, instead of locking every
+    eligible row up front (audit #122 / S3). The old unbounded SELECT locked
+    the *entire* eligible set the instant it ran, before any Python code got
+    a chance to inspect a single row — so a second, genuinely concurrent
+    checkout racing inside that window could SKIP LOCKED its way to zero
+    rows and raise "No active Instagram accounts" even when several were
+    actually free. Fetching one row at a time bounds each query's lock
+    footprint to what it's about to examine, so a sibling transaction can
+    still claim any row this one hasn't touched yet.
+
+    Rows we look at but don't claim (rate-limited) are excluded from the
+    next iteration via `id NOT IN (already_seen)` — SKIP LOCKED only skips
+    rows locked by *other* transactions, not ones we're already holding —
+    and stay locked until this transaction commits or rolls back, so every
+    exit path below must commit before returning/raising, or those accounts
+    stay locked for other workers until the caller's own commit (which can
+    be a whole job later).
     """
     from app.models.account import Account, AccountStatus
 
@@ -273,19 +286,28 @@ def get_account_sync(db: Session, redis_client) -> tuple:
     lease_duration = timedelta(minutes=settings.ig_account_lease_minutes)
     now = datetime.now(UTC)
 
-    result = db.execute(
-        select(Account)
-        .where(
+    examined_ids: list = []
+    saw_any_candidate = False
+    while True:
+        query = select(Account).where(
             Account.status == AccountStatus.active,
             (Account.leased_until.is_(None)) | (Account.leased_until <= now),
         )
-        .order_by(Account.last_used_at.nullsfirst())
-        .with_for_update(skip_locked=True)
-    )
-    accounts = result.scalars().all()
-    if not accounts:
-        raise RuntimeError("No active Instagram accounts. Add via /api/v1/accounts.")
-    for account in accounts:
+        if examined_ids:
+            query = query.where(Account.id.notin_(examined_ids))
+        account = (
+            db.execute(
+                query.order_by(Account.last_used_at.nullsfirst())
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+        if account is None:
+            break
+        saw_any_candidate = True
+
         count = int(redis_client.get(_RATE_KEY.format(account.id)) or 0)
         if count < max_req - settings.ig_rate_limit_margin:
             account.leased_until = now + lease_duration
@@ -301,8 +323,12 @@ def get_account_sync(db: Session, redis_client) -> tuple:
                 ),
             )
             return account, client
+        examined_ids.append(account.id)
+
     db.commit()  # release FOR UPDATE on the rate-limited rows we're not claiming
-    raise RuntimeError("All accounts hit rate limits. Retry after 1 hour.")
+    if saw_any_candidate:
+        raise RuntimeError("All accounts hit rate limits. Retry after 1 hour.")
+    raise RuntimeError("No active Instagram accounts. Add via /api/v1/accounts.")
 
 
 def mark_account_cooldown_sync(db: Session, redis_client, account) -> None:
