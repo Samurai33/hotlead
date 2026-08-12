@@ -7,6 +7,7 @@ import { pauseJobAction, resumeJobAction, deleteJobAction, type JobActionState }
 import {
   formatDate, formatNumber, progressPct, STATUS_LABELS,
 } from "@/lib/utils";
+import { ErrorState } from "@/components/shared/ErrorState";
 import type { Job } from "@/lib/types";
 import {
   ArrowLeft, Pause, Play, Trash2, Download, Users, Mail, Phone, ExternalLink, Loader2,
@@ -38,7 +39,7 @@ function useMutateOnSettle(pending: boolean, mutate: () => void) {
 }
 
 export default function JobDetailClient({ id, initialJob }: { id: string; initialJob?: Job }) {
-  const { job, isLoading, mutate } = useJob(id, initialJob);
+  const { job, isLoading, isError, mutate } = useJob(id, initialJob);
 
   const [pauseState, pauseAction, pausePending] = useActionState(pauseJobAction, initialActionState);
   const [resumeState, resumeAction, resumePending] = useActionState(resumeJobAction, initialActionState);
@@ -53,6 +54,21 @@ export default function JobDetailClient({ id, initialJob }: { id: string; initia
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-text-muted text-sm">Carregando...</p>
+      </div>
+    );
+  }
+
+  // Audit FE-C1: a network/backend fetch failure used to fall into this same
+  // branch as a real 404, rendering "Job não encontrado" either way — utterly
+  // misleading when the job exists but the request just failed. isError is
+  // distinct from "no data yet" (isLoading) and from "confirmed absent"
+  // (!isError && !job), so give it its own branch with a retry.
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-sm w-full">
+          <ErrorState message="Não foi possível carregar este job." onRetry={() => mutate()} />
+        </div>
       </div>
     );
   }

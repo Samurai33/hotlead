@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { accountsApi } from "@/lib/api";
 import type { Account, AccountStatus } from "@/lib/types";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { ArrowLeft, Trash2, RefreshCw, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { useState } from "react";
 
@@ -20,15 +21,22 @@ const STATUS_CONFIG: Record<AccountStatus, { label: string; color: string; icon:
 
 function AccountCard({ account, onDelete }: { account: Account; onDelete: () => void }) {
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const cfg = STATUS_CONFIG[account.status];
   const Icon = cfg.icon;
 
   async function handleDelete() {
     if (!confirm(`Remover @${account.username} do pool?`)) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await accountsApi.remove(account.id);
       onDelete();
+    } catch {
+      // Audit F2: this used to have no catch at all, so a failed delete
+      // (e.g. account still in use, network hiccup) left the row looking
+      // fine with zero feedback that nothing happened.
+      setDeleteError("Erro ao remover conta. Tente novamente.");
     } finally {
       setDeleting(false);
     }
@@ -45,6 +53,9 @@ function AccountCard({ account, onDelete }: { account: Account; onDelete: () => 
           <p className="text-xs text-text-muted mt-0.5">
             {account.last_used_at ? `Último uso: ${formatDate(account.last_used_at)}` : "Nunca usado"}
           </p>
+          {deleteError && (
+            <p className="text-xs text-status-error mt-0.5">{deleteError}</p>
+          )}
         </div>
       </div>
 
@@ -87,11 +98,12 @@ function AccountCard({ account, onDelete }: { account: Account; onDelete: () => 
 }
 
 export default function AccountsClient({ initialAccounts }: { initialAccounts: Account[] }) {
-  const { data: accounts, isLoading, mutate } = useSWR(
+  const { data: accounts, error, isLoading, mutate } = useSWR(
     "accounts",
     accountsApi.list,
     { fallbackData: initialAccounts, refreshInterval: 10000 },
   );
+  const isError = !!error;
 
   const active   = accounts?.filter(a => a.status === "active").length ?? 0;
   const cooldown = accounts?.filter(a => a.status === "cooldown").length ?? 0;
@@ -115,6 +127,15 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
       </header>
 
       <main className="px-6 py-6 max-w-3xl mx-auto">
+        {/* Audit FE-C1: isError was computed but never rendered — a
+            network/backend failure silently fell through to the "Nenhuma
+            conta no pool" empty state below. */}
+        {isError && (
+          <div className="mb-6">
+            <ErrorState message="Não foi possível carregar as contas." onRetry={() => mutate()} />
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
@@ -130,7 +151,7 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
         </div>
 
         {/* Empty state */}
-        {!isLoading && (!accounts || accounts.length === 0) && (
+        {!isLoading && !isError && (!accounts || accounts.length === 0) && (
           <div className="card border-yellow-500/30 bg-yellow-500/5 mb-6">
             <div className="flex gap-3">
               <AlertCircle size={16} className="text-yellow-400 shrink-0 mt-0.5" />

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useJobs } from "@/hooks/use-job";
 import { logoutAction } from "@/app/actions";
 import { formatDate, formatNumber, progressPct, STATUS_LABELS } from "@/lib/utils";
+import { ErrorState } from "@/components/shared/ErrorState";
 import type { JobSummary } from "@/lib/types";
 import { Plus, RefreshCw, Mail, Users, LogOut } from "lucide-react";
 
@@ -16,7 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DashboardClient({ initialJobs }: { initialJobs: JobSummary[] }) {
-  const { jobs, isLoading, mutate } = useJobs(initialJobs);
+  const { jobs, isLoading, isError, mutate } = useJobs(initialJobs);
 
   const stats = {
     total: jobs.length,
@@ -52,6 +53,16 @@ export default function DashboardClient({ initialJobs }: { initialJobs: JobSumma
       </header>
 
       <main className="px-6 py-6 max-w-6xl mx-auto">
+        {/* Audit FE-C1: a network/backend error used to be indistinguishable
+            from "no jobs yet" — isError was computed by useJobs but never
+            read here. Surface it with a retry instead of falling through to
+            the empty state below. */}
+        {isError && (
+          <div className="mb-6">
+            <ErrorState message="Não foi possível carregar os jobs." onRetry={() => mutate()} />
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
@@ -83,7 +94,7 @@ export default function DashboardClient({ initialJobs }: { initialJobs: JobSumma
             <div className="px-4 py-8 text-center text-text-muted text-sm">
               Carregando...
             </div>
-          ) : jobs.length === 0 ? (
+          ) : isError ? null : jobs.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <p className="text-text-muted text-sm mb-3">Nenhum job ainda.</p>
               <Link href="/jobs/new" className="btn-primary text-sm inline-flex items-center gap-1.5">
