@@ -24,11 +24,12 @@ export default function LoginPage() {
 
         <form action={formAction} className="card space-y-4">
           <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1.5">
+            <label htmlFor="api-key" className="block text-xs font-medium text-text-secondary mb-1.5">
               API Key
             </label>
             <div className="relative">
               <input
+                id="api-key"
                 name="key"
                 type={show ? "text" : "password"}
                 className="input pr-10 font-mono text-xs"

@@ -33,6 +33,16 @@ const csp = [
 const nextConfig = {
   output: "standalone",
   typedRoutes: true,
+  experimental: {
+    // Server Actions validate the request's Origin against Host as a CSRF
+    // guard. Traefik reports scheme=http here (TLS terminates at the
+    // Cloudflare edge, outside Coolify's reach — see CLAUDE.md), which makes
+    // that same-origin inference quirky through the proxy chain. Pin the
+    // known-good production origin explicitly instead of relying on it.
+    serverActions: {
+      allowedOrigins: ["hotlead.n3xus.dev"],
+    },
+  },
   async headers() {
     return [
       {
