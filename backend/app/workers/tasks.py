@@ -92,6 +92,20 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
             logger.error("job.not_found", job_id=job_id)
             return {"status": "error", "detail": "Job not found"}
 
+        if job.status == "paused":
+            # audit S2 / issue #121: a Celery retry backoff window leaves
+            # job.status == "running" while the task sleeps between attempts
+            # (the countdown from _retry_or_terminate). pause_job's only
+            # guard is status == "running", which still holds during that
+            # wait, so a pause request mid-backoff flips the row to "paused".
+            # When the scheduled retry fires, this used to be the very first
+            # DB write on re-entry, unconditionally forcing status back to
+            # "running" before the per-iteration pause check further below
+            # ever ran — silently discarding the pause. Bailing out here
+            # instead makes a pause requested during backoff sticky.
+            logger.info("job.paused_during_retry_backoff", job_id=job_id)
+            return {"status": "paused", "job_id": job_id}
+
         update_job_status(db, job_id, "running")
 
         # total_count is an optional user-set cap (audit L6 — used to be dead,

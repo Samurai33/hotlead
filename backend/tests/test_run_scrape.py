@@ -60,6 +60,27 @@ def test_run_scrape_proceeds_when_target_not_yet_reached():
     assert result == {"status": "error", "detail": "No active Instagram accounts."}
 
 
+def test_run_scrape_paused_during_retry_backoff_stays_paused():
+    """audit S2 / issue #121: a Celery retry's countdown leaves job.status
+    "running" while the task sleeps. If the user pauses during that window,
+    pause_job's only guard (status == "running") still passes and flips the
+    row to "paused". When the scheduled retry fires and _run_scrape
+    re-enters, it must see that "paused" status and bail out immediately —
+    not overwrite it back to "running" before the per-iteration pause check
+    further down ever gets a chance to run."""
+    job = MagicMock(id="job1", total_count=0, scraped_count=0, status="paused")
+    db, mocks = _mock_sync_helpers(job)
+
+    with patch.multiple("app.workers._sync_helpers", **mocks):
+        result = _run_scrape(MagicMock(), "job1", "someprofile", "iter_followers")
+
+    assert result == {"status": "paused", "job_id": "job1"}
+    mocks["get_account_sync"].assert_not_called()
+    # Must never re-force the row back to "running".
+    for call in mocks["update_job_status"].call_args_list:
+        assert call.args[2] != "running"
+
+
 def test_run_scrape_unbounded_job_proceeds_regardless_of_scraped_count():
     """total_count=0 means unlimited (audit L6's default) — must never
     early-exit no matter how many prospects are already saved."""
