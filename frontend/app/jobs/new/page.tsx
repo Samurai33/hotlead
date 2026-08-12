@@ -56,10 +56,11 @@ export default function NewJobPage() {
       <form action={formAction} className="space-y-5">
         {/* Username */}
         <div>
-          <label className="block text-sm font-medium mb-1.5">Perfil Instagram</label>
+          <label htmlFor="username" className="block text-sm font-medium mb-1.5">Perfil Instagram</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-mono text-sm">@</span>
             <input
+              id="username"
               name="username"
               className="input pl-7"
               placeholder="cozinha4e20"
@@ -72,8 +73,8 @@ export default function NewJobPage() {
         </div>
 
         {/* Mode */}
-        <div>
-          <label className="block text-sm font-medium mb-1.5">Modo</label>
+        <fieldset>
+          <legend className="block text-sm font-medium mb-1.5">Modo</legend>
           <div className="space-y-2">
             {MODES.map((m) => (
               <label
@@ -99,15 +100,16 @@ export default function NewJobPage() {
               </label>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         {/* Post URL — only shown for commenters mode */}
         {isCommenters && (
           <div>
-            <label className="block text-sm font-medium mb-1.5">URL do Post</label>
+            <label htmlFor="post-url" className="block text-sm font-medium mb-1.5">URL do Post</label>
             <div className="relative">
               <LinkIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
+                id="post-url"
                 name="postUrl"
                 className="input pl-8"
                 placeholder="https://www.instagram.com/p/ABC123/"
@@ -130,8 +132,9 @@ export default function NewJobPage() {
 
         {/* Optional cap on how many profiles to scrape */}
         <div>
-          <label className="block text-sm font-medium mb-1.5">Limite de perfis (opcional)</label>
+          <label htmlFor="max-count" className="block text-sm font-medium mb-1.5">Limite de perfis (opcional)</label>
           <input
+            id="max-count"
             name="maxCount"
             className="input"
             type="number"

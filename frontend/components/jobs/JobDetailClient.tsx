@@ -8,12 +8,15 @@ import {
   formatDate, formatNumber, progressPct, STATUS_LABELS,
 } from "@/lib/utils";
 import { ErrorState } from "@/components/shared/ErrorState";
-import type { Job } from "@/lib/types";
+import type { Job, JobStatus } from "@/lib/types";
 import {
   ArrowLeft, Pause, Play, Trash2, Download, Users, Mail, Phone, ExternalLink, Loader2,
 } from "lucide-react";
 
-const STATUS_COLORS: Record<string, string> = {
+// Keyed by the full JobStatus union (not Record<string, ...>) so indexing
+// with job.status is exhaustively covered by the compiler -- no
+// possibly-undefined fallback needed (audit AUDIT-2.md L9).
+const STATUS_COLORS: Record<JobStatus, string> = {
   pending: "text-status-pending",
   running: "text-status-running",
   paused:  "text-status-paused",

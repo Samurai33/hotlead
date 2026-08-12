@@ -5,10 +5,13 @@ import { useJobs } from "@/hooks/use-job";
 import { logoutAction } from "@/app/actions";
 import { formatDate, formatNumber, progressPct, STATUS_LABELS } from "@/lib/utils";
 import { ErrorState } from "@/components/shared/ErrorState";
-import type { JobSummary } from "@/lib/types";
+import type { JobStatus, JobSummary } from "@/lib/types";
 import { Plus, RefreshCw, Mail, Users, LogOut } from "lucide-react";
 
-const STATUS_COLORS: Record<string, string> = {
+// Keyed by the full JobStatus union (not Record<string, ...>) so indexing
+// with job.status is exhaustively covered by the compiler -- no
+// possibly-undefined fallback needed (audit AUDIT-2.md L9).
+const STATUS_COLORS: Record<JobStatus, string> = {
   pending: "text-status-pending bg-status-pending/10",
   running: "text-status-running bg-status-running/10",
   paused:  "text-status-paused  bg-status-paused/10",
