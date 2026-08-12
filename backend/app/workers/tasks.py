@@ -9,6 +9,7 @@ from collections.abc import Generator
 
 import structlog
 from celery import shared_task
+from celery.exceptions import Retry
 
 from app.scraper.client import (
     AccountChallenged,
@@ -51,6 +52,30 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
     )
 
     logger.info("job.starting", job_id=job_id, mode=iterator_name, target=target)
+
+    def _retry_or_terminate(exc: Exception, countdown: float, max_retries: int) -> None:
+        """Retry the task, or persist a terminal error if the retry budget is
+        exhausted (audit S1 / issue #119).
+
+        self.retry(exc=exc, ...) raises a `Retry` signal when a retry is
+        successfully scheduled -- but once `max_retries` is exhausted,
+        Celery's own Task.retry re-raises `exc` itself instead (see
+        celery.app.task.Task.retry's `raise_with_context(exc)` branch),
+        bypassing the `Retry` wrapper entirely. Since that happens from
+        inside one of this function's `except ... as exc:` blocks, it is
+        NOT caught by the sibling `except Exception` below -- exceptions
+        raised inside an except clause aren't handled by other except
+        clauses on the same try -- so it used to propagate straight out of
+        _run_scrape uncaught, leaving job.status stuck at whatever it was
+        (almost always "running") with no error_message ever set.
+        """
+        try:
+            raise self.retry(exc=exc, countdown=countdown, max_retries=max_retries)
+        except Retry:
+            raise
+        except Exception:
+            update_job_status(db, job_id, "error", error_message=str(exc)[:500])
+            raise
 
     with get_sync_db() as db, get_sync_redis() as redis:
         job = get_job(db, job_id)
@@ -135,7 +160,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
                 account_id=str(account.id),
                 retry_seconds=round(countdown),
             )
-            raise self.retry(exc=exc, countdown=countdown, max_retries=3)
+            _retry_or_terminate(exc, countdown, max_retries=3)
 
         except AccountChallenged as exc:
             mark_account_challenged_sync(db, redis, account)
@@ -146,7 +171,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
                 account_id=str(account.id),
                 retry_seconds=round(countdown),
             )
-            raise self.retry(exc=exc, countdown=countdown, max_retries=2)
+            _retry_or_terminate(exc, countdown, max_retries=2)
 
         except AccountFlagged as exc:
             mark_account_challenged_sync(db, redis, account)
@@ -157,7 +182,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
                 account_id=str(account.id),
                 retry_seconds=round(countdown),
             )
-            raise self.retry(exc=exc, countdown=countdown, max_retries=2)
+            _retry_or_terminate(exc, countdown, max_retries=2)
 
         except SessionExpired:
             # Session is dead — no timed recovery. Do NOT retry; flag for re-onboard.

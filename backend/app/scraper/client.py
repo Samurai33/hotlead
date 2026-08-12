@@ -18,6 +18,7 @@ from instagrapi.exceptions import (
     RateLimitError,
     UserNotFound,
 )
+from requests.exceptions import RetryError
 
 from app.core.config import get_settings
 from app.scraper.extractor import extract_email, extract_phone, extract_website
@@ -105,7 +106,16 @@ class IGClient:
             return self._cl.user_id_from_username(username)
         except UserNotFound:
             raise ProfileNotFound(f"@{username} not found or is private")
-        except (RateLimitError, PleaseWaitFewMinutes):
+        except (RateLimitError, PleaseWaitFewMinutes, RetryError):
+            # RetryError (audit C1): instagrapi mounts an HTTPAdapter with its
+            # own urllib3 Retry (3x, backoff, status_forcelist includes 429)
+            # on both the public and private requests sessions -- invisible
+            # to this app until it's exhausted, at which point requests
+            # raises RetryError. Without this, the exhausted-retry case fell
+            # through to the generic except Exception in tasks.py: the job
+            # errored out correctly, but the account never cooled down or
+            # rotated, so the very next checkout handed the same
+            # already-429'd account straight back out.
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
         except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
@@ -143,7 +153,9 @@ class IGClient:
                 batch, next_cursor = self._cl.user_followers_v1_chunk(
                     user_id, max_amount=50, max_id=next_cursor or ""
                 )
-            except (RateLimitError, PleaseWaitFewMinutes):
+            except (RateLimitError, PleaseWaitFewMinutes, RetryError):
+                # See get_user_id's except clause for why RetryError belongs
+                # here too (audit C1).
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
             except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
@@ -180,7 +192,9 @@ class IGClient:
                 batch, next_cursor = self._cl.user_following_v1_chunk(
                     user_id, max_amount=50, max_id=next_cursor or ""
                 )
-            except (RateLimitError, PleaseWaitFewMinutes):
+            except (RateLimitError, PleaseWaitFewMinutes, RetryError):
+                # See get_user_id's except clause for why RetryError belongs
+                # here too (audit C1).
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
             except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
@@ -215,7 +229,16 @@ class IGClient:
         self._delay()
         try:
             media_pk = self._cl.media_pk_from_url(post_url)
-        except (RateLimitError, PleaseWaitFewMinutes):
+        except (RateLimitError, PleaseWaitFewMinutes, RetryError):
+            # RetryError (audit C1): instagrapi mounts an HTTPAdapter with its
+            # own urllib3 Retry (3x, backoff, status_forcelist includes 429)
+            # on both the public and private requests sessions -- invisible
+            # to this app until it's exhausted, at which point requests
+            # raises RetryError. Without this, the exhausted-retry case fell
+            # through to the generic except Exception in tasks.py: the job
+            # errored out correctly, but the account never cooled down or
+            # rotated, so the very next checkout handed the same
+            # already-429'd account straight back out.
             raise RateLimitExceeded(f"Rate limit on @{self.username}")
         except ChallengeRequired:
             raise AccountChallenged(f"Challenge on @{self.username}")
@@ -238,7 +261,9 @@ class IGClient:
                 comments, next_cursor = self._cl.media_comments_chunk(
                     media_pk, max_amount=50, min_id=next_cursor
                 )
-            except (RateLimitError, PleaseWaitFewMinutes):
+            except (RateLimitError, PleaseWaitFewMinutes, RetryError):
+                # See get_user_id's except clause for why RetryError belongs
+                # here too (audit C1).
                 raise RateLimitExceeded(f"Rate limit on @{self.username}")
             except ChallengeRequired:
                 raise AccountChallenged(f"Challenge on @{self.username}")
