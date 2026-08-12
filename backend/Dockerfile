@@ -1,5 +1,6 @@
 # ---- Stage 1: Dependencies ----
-FROM python:3.12-slim AS deps
+# pinned digest — update deliberately, see audit #143
+FROM python:3.12-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36 AS deps
 
 WORKDIR /app
 
@@ -9,7 +10,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip     && pip install --no-cache-dir -r requirements.txt
 
 # ---- Stage 2: Runner ----
-FROM python:3.12-slim AS runner
+# pinned digest — update deliberately, see audit #143
+FROM python:3.12-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36 AS runner
 
 WORKDIR /app
 
