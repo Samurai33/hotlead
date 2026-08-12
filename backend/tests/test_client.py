@@ -14,9 +14,10 @@ from unittest.mock import MagicMock, create_autospec, patch
 import pytest
 from instagrapi import Client as RealClient
 from instagrapi.exceptions import FeedbackRequired
+from requests.exceptions import RetryError
 
 from app.core.config import get_settings
-from app.scraper.client import AccountFlagged, IGClient
+from app.scraper.client import AccountFlagged, IGClient, RateLimitExceeded
 
 
 def _make_client() -> IGClient:
@@ -208,6 +209,53 @@ def test_iter_commenters_maps_feedback_required_to_account_flagged():
     cl._cl.media_comments_chunk.side_effect = FeedbackRequired("flagged")
 
     with pytest.raises(AccountFlagged):
+        list(cl.iter_commenters("https://www.instagram.com/p/ABC/"))
+
+
+def test_get_user_id_maps_retry_error_to_rate_limit_exceeded():
+    """audit C1 / issue #120: instagrapi mounts an HTTPAdapter with its own
+    urllib3 Retry (3x, backoff, status_forcelist including 429) on both the
+    public and private requests sessions -- invisible to this app until it's
+    exhausted, at which point `requests` raises RetryError. Before this fix
+    it fell through every except clause here into the generic handler with
+    no cooldown/rotation triggered."""
+    cl = _make_client()
+    cl._cl.user_id_from_username.side_effect = RetryError("max retries exceeded")
+
+    with pytest.raises(RateLimitExceeded):
+        cl.get_user_id("someprofile")
+
+
+def test_iter_followers_maps_retry_error_to_rate_limit_exceeded():
+    cl = _make_client()
+    cl._cl.user_followers_v1_chunk.side_effect = RetryError("max retries exceeded")
+
+    with pytest.raises(RateLimitExceeded):
+        list(cl.iter_followers("someprofile"))
+
+
+def test_iter_following_maps_retry_error_to_rate_limit_exceeded():
+    cl = _make_client()
+    cl._cl.user_following_v1_chunk.side_effect = RetryError("max retries exceeded")
+
+    with pytest.raises(RateLimitExceeded):
+        list(cl.iter_following("someprofile"))
+
+
+def test_iter_commenters_maps_retry_error_to_rate_limit_exceeded_on_media_resolution():
+    cl = _make_client()
+    cl._cl.media_pk_from_url.side_effect = RetryError("max retries exceeded")
+
+    with pytest.raises(RateLimitExceeded):
+        list(cl.iter_commenters("https://www.instagram.com/p/ABC/"))
+
+
+def test_iter_commenters_maps_retry_error_to_rate_limit_exceeded_on_chunk_pagination():
+    cl = _make_client()
+    cl._cl.media_pk_from_url.return_value = "media123"
+    cl._cl.media_comments_chunk.side_effect = RetryError("max retries exceeded")
+
+    with pytest.raises(RateLimitExceeded):
         list(cl.iter_commenters("https://www.instagram.com/p/ABC/"))
 
 
