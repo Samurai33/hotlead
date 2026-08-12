@@ -61,6 +61,22 @@ Redis ↔ Celery Workers
 > `session_expired` account state (no timed recovery, no more looping on a pointless
 > cooldown) instead of being mislabeled as a challenge.
 
+## Frontend auth (httpOnly session cookie, not localStorage)
+
+Post-M1 migration (see `docs/AUDIT-2.md`), the browser never holds the API
+key. `(auth)/login` submits a Server Action (`app/(auth)/login/actions.ts`)
+that validates the key against a real authenticated route and stores it in
+an httpOnly cookie via `lib/session.ts`. `proxy.ts` (Next middleware) gates
+every non-public route on cookie *presence* before the page renders — no
+client-side `AuthGuard` component, no `lib/auth.ts` localStorage helper (both
+removed). Client Components poll through the same-origin route handler
+`app/api/proxy/[...path]/route.ts`, which reads the cookie server-side and
+attaches `X-API-Key`; the browser never sees the key. Server Components and
+Server Actions read the cookie directly (`lib/session.ts` / `lib/server-api.ts`)
+and call the backend with the header themselves. The backend's
+`require_api_key` dependency (header + `secrets.compare_digest`) is unchanged
+either way.
+
 ## Data models
 
 ### Job

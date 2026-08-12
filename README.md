@@ -242,23 +242,31 @@ hotlead/
 │   ├── next.config.mjs
 │   ├── tailwind.config.ts
 │   ├── tsconfig.json
+│   ├── proxy.ts                     # Next middleware: gates routes on session cookie presence
 │   ├── app/
-│   │   ├── layout.tsx               # Root layout + AuthGuard
+│   │   ├── layout.tsx               # Root layout
 │   │   ├── page.tsx                 # Dashboard (job list + stats)
-│   │   ├── (auth)/login/page.tsx    # API key entry
+│   │   ├── (auth)/login/
+│   │   │   ├── page.tsx             # API key entry
+│   │   │   └── actions.ts           # Server Action: validates key, sets httpOnly cookie
+│   │   ├── api/proxy/[...path]/route.ts  # Same-origin proxy: reads cookie, attaches X-API-Key
+│   │   ├── actions.ts               # logoutAction: clears session cookie
 │   │   ├── jobs/
-│   │   │   ├── new/page.tsx         # Create job form
+│   │   │   ├── new/
+│   │   │   │   ├── page.tsx         # Create job form
+│   │   │   │   └── actions.ts       # Server Action: POST /api/v1/jobs
 │   │   │   └── [id]/
 │   │   │       ├── page.tsx         # Job detail + live progress
+│   │   │       ├── actions.ts
 │   │   │       └── prospects/page.tsx  # Prospect table + export
 │   │   └── accounts/page.tsx        # Account pool (read/delete)
 │   ├── components/
-│   │   └── shared/AuthGuard.tsx     # client-side API-key guard
 │   ├── hooks/
 │   │   └── use-job.ts               # SWR polling: useJob + useJobs
 │   └── lib/
 │       ├── api.ts                   # typed fetch wrapper (http→https upgrade)
-│       ├── auth.ts                  # API-key localStorage helpers
+│       ├── session.ts               # httpOnly cookie read/write (Server Components/Actions only)
+│       ├── server-api.ts            # server-side backendFetch, attaches X-API-Key from cookie
 │       └── utils.ts                 # formatters + status labels
 │
 ├── .claude/
