@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from cryptography.fernet import Fernet
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -9,6 +10,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # not the recommended length: it only catches obviously-weak values like
 # "changeme" or a short word, not a mediocre-but-plausible-looking secret.
 _MIN_SECRET_LENGTH = 32
+
+# Per-field "how do I generate a real one" hint for the ValueError messages
+# below -- session_encryption_key is a Fernet key, not an arbitrary hex
+# secret, so `openssl rand -hex 32` (correct for secret_key/api_key) would be
+# actively wrong advice for it.
+_SECRET_GEN_HINTS = {
+    "secret_key": "openssl rand -hex 32",
+    "api_key": "openssl rand -hex 32",
+    "session_encryption_key": (
+        'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+    ),
+}
 
 
 class Settings(BaseSettings):
@@ -90,13 +103,34 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_secret_entropy(self) -> "Settings":
-        for field in ("secret_key", "api_key"):
+        # session_encryption_key included here too (audit #123/B1) -- it had
+        # no startup check at all before, unlike secret_key/api_key, and a
+        # weak/placeholder value (e.g. the .env.example "CHANGE_ME" default)
+        # would otherwise only surface on the first real POST /accounts
+        # request as a bare 500 out of Fernet(...).
+        for field in ("secret_key", "api_key", "session_encryption_key"):
             value = getattr(self, field).get_secret_value()
             if len(value) < _MIN_SECRET_LENGTH:
                 raise ValueError(
                     f"{field} is only {len(value)} chars -- looks like a weak/placeholder "
-                    f"value, not a real secret. Generate one with: openssl rand -hex 32"
+                    f"value, not a real secret. Generate one with: {_SECRET_GEN_HINTS[field]}"
                 )
+
+        # Unlike secret_key/api_key (opaque strings only ever compared with
+        # secrets.compare_digest), session_encryption_key must additionally
+        # be a well-formed Fernet key -- length/entropy alone doesn't catch a
+        # long-but-malformed value (bad base64, wrong decoded byte length).
+        # Constructing Fernet(...) here fails fast at startup instead of on
+        # the first real POST /accounts request (audit #123/B1).
+        raw_key = self.session_encryption_key.get_secret_value()
+        try:
+            Fernet(raw_key.encode())
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                "session_encryption_key is not a valid Fernet key -- generate one with: "
+                f"{_SECRET_GEN_HINTS['session_encryption_key']}"
+            ) from exc
+
         return self
 
     @property
