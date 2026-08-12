@@ -1,7 +1,8 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -48,16 +49,32 @@ async def add_account(payload: AccountCreate, db: AsyncSession = Depends(get_db)
         status=AccountStatus.active,
     )
     db.add(account)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # TOCTOU (audit B6): two concurrent POSTs with the same username can
+        # both pass the SELECT above before either commits. The loser hits
+        # the DB's unique constraint here instead of a bare 500.
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Account @{payload.username} already exists",
+        ) from None
     await db.refresh(account)
     return account
 
 
 @router.get("", response_model=list[AccountRead])
 @router.get("/", response_model=list[AccountRead])
-async def list_accounts(db: AsyncSession = Depends(get_db)):
+async def list_accounts(
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
     """List all accounts in the pool with their current status."""
-    result = await db.execute(select(Account).order_by(Account.created_at.desc()))
+    result = await db.execute(
+        select(Account).order_by(Account.created_at.desc()).limit(limit).offset(offset)
+    )
     return result.scalars().all()
 
 

@@ -1,6 +1,12 @@
+import asyncio
 import uuid
 
 import pytest
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from app.api.v1.accounts import add_account
+from app.schemas.account import AccountCreate
 
 
 @pytest.mark.asyncio
@@ -157,6 +163,50 @@ async def test_add_account_oversized_username_rejected(client):
 
 
 @pytest.mark.asyncio
+async def test_list_accounts_pagination(client):
+    """audit B5: GET /accounts had no pagination at all -- match
+    prospects.list_prospects's limit/offset pattern."""
+    usernames = ["paginate_acc_0_x1", "paginate_acc_1_x1", "paginate_acc_2_x1"]
+    ids = []
+    for username in usernames:
+        resp = await client.post(
+            "/api/v1/accounts",
+            json={
+                "username": username,
+                "session_json": '{"device_id": "test"}',
+                "proxy_url": "http://user:pass@proxy.example.com:8080",
+            },
+        )
+        assert resp.status_code == 201
+        ids.append(resp.json()["id"])
+
+    page1 = await client.get("/api/v1/accounts", params={"limit": 2, "offset": 0})
+    assert page1.status_code == 200
+    page1_data = page1.json()
+    assert len(page1_data) == 2
+    # created_at desc -- the two most recently created accounts (ids[2], ids[1])
+    # must be the first page.
+    assert page1_data[0]["id"] == ids[2]
+    assert page1_data[1]["id"] == ids[1]
+
+    page2 = await client.get("/api/v1/accounts", params={"limit": 2, "offset": 2})
+    assert page2.status_code == 200
+    page2_data = page2.json()
+    assert page2_data[0]["id"] == ids[0]
+
+    assert {a["id"] for a in page1_data}.isdisjoint(a["id"] for a in page2_data)
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_limit_out_of_range_rejected(client):
+    resp = await client.get("/api/v1/accounts", params={"limit": 0})
+    assert resp.status_code == 422
+
+    resp = await client.get("/api/v1/accounts", params={"limit": 501})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_add_account_oversized_proxy_url_rejected(client):
     """audit B7: proxy_url backs a String(500) column."""
     oversized_proxy = "http://user:pass@" + ("a" * 490) + ".example.com:8080"
@@ -185,3 +235,80 @@ async def test_add_account_oversized_locale_rejected(client):
         },
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_concurrent_add_account_same_username_returns_409_not_500(engine):
+    """audit B6: the duplicate-username check is a SELECT then INSERT, not
+    atomic. Two concurrent POSTs for a brand-new username can both pass the
+    SELECT before either commits its INSERT; the loser must hit a clean 409
+    (via the DB's unique constraint + the endpoint's IntegrityError handling),
+    never a bare 500.
+
+    Uses two independent real AsyncSessions calling add_account() directly
+    (an AsyncSession isn't safe for concurrent use, so the shared `client`/`db`
+    fixtures can't drive real concurrent HTTP calls here) and a barrier that
+    forces both sessions' duplicate-check SELECTs to complete -- both seeing
+    no existing row -- before either proceeds to INSERT, faithfully
+    reproducing the race window described in the finding.
+    """
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    db_a = session_factory()
+    db_b = session_factory()
+
+    barrier = asyncio.Barrier(2)
+    checked = {"a": False, "b": False}
+
+    def _wrap(session, key):
+        real_execute = session.execute
+
+        async def wrapper(*args, **kwargs):
+            result = await real_execute(*args, **kwargs)
+            if not checked[key]:
+                checked[key] = True
+                await barrier.wait()
+            return result
+
+        return wrapper
+
+    db_a.execute = _wrap(db_a, "a")
+    db_b.execute = _wrap(db_b, "b")
+
+    payload = AccountCreate(
+        username="race_acc_x1",
+        session_json='{"device_id": "test"}',
+        proxy_url="http://user:pass@proxy.example.com:8080",
+    )
+
+    try:
+        results = await asyncio.gather(
+            add_account(payload, db=db_a),
+            add_account(payload, db=db_b),
+            return_exceptions=True,
+        )
+    finally:
+        # Whichever session lost the race already rolled itself back inside
+        # add_account's except block -- both should be clean here.
+        cleanup = session_factory()
+        try:
+            from sqlalchemy import delete
+
+            from app.models.account import Account
+
+            await cleanup.execute(delete(Account).where(Account.username == "race_acc_x1"))
+            await cleanup.commit()
+        finally:
+            await cleanup.close()
+        await db_a.close()
+        await db_b.close()
+
+    statuses = []
+    for r in results:
+        if isinstance(r, HTTPException):
+            statuses.append(r.status_code)
+        elif isinstance(r, BaseException):
+            raise r
+        else:
+            statuses.append(201)
+
+    assert sorted(statuses) == [201, 409]

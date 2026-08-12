@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.account import AccountStatus
+
 
 class AccountCreate(BaseModel):
     username: str = Field(max_length=150)
@@ -23,7 +25,7 @@ class AccountRead(BaseModel):
     username: str
     proxy_url: str
     locale: str | None
-    status: str
+    status: AccountStatus
     requests_today: int
     last_used_at: datetime | None
     cooldown_until: datetime | None

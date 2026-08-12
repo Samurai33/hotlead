@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,9 +106,15 @@ async def create_job(payload: JobCreate, db: AsyncSession = Depends(get_db)):
 
 @router.get("", response_model=list[JobListRead])
 @router.get("/", response_model=list[JobListRead])
-async def list_jobs(db: AsyncSession = Depends(get_db)):
+async def list_jobs(
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
     """List all jobs ordered by creation date."""
-    result = await db.execute(select(Job).order_by(Job.created_at.desc()).limit(100))
+    result = await db.execute(
+        select(Job).order_by(Job.created_at.desc()).limit(limit).offset(offset)
+    )
     return result.scalars().all()
 
 
