@@ -260,6 +260,33 @@ async def test_create_job_without_max_count_defaults_total_count_zero(client):
 
 
 @pytest.mark.asyncio
+async def test_create_job_oversized_profile_username_rejected(client):
+    """audit B7: profile_username backs a String(100) column -- oversized
+    input must 422 from Pydantic, not 500 from an unhandled
+    StringDataRightTruncation at INSERT time."""
+    resp = await client.post(
+        "/api/v1/jobs",
+        json={"profile_username": "x" * 101},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_job_oversized_target_post_url_rejected(client):
+    """audit B7: target_post_url backs a String(500) column."""
+    oversized = "https://www.instagram.com/p/" + ("A" * 480) + "/"
+    resp = await client.post(
+        "/api/v1/jobs",
+        json={
+            "profile_username": "cozinha4e20",
+            "mode": "commenters",
+            "target_post_url": oversized,
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_requires_api_key(client):
     from httpx import ASGITransport, AsyncClient
 

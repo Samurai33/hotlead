@@ -138,3 +138,50 @@ async def test_list_accounts_slashless_no_redirect(client):
     resp = await client.get("/api/v1/accounts")
     assert resp.status_code == 200
     assert resp.history == []
+
+
+@pytest.mark.asyncio
+async def test_add_account_oversized_username_rejected(client):
+    """audit B7: username backs a String(150) column -- oversized input
+    must 422 from Pydantic, not 500 from an unhandled
+    StringDataRightTruncation at INSERT time."""
+    resp = await client.post(
+        "/api/v1/accounts",
+        json={
+            "username": "x" * 151,
+            "session_json": '{"device_id": "test"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_add_account_oversized_proxy_url_rejected(client):
+    """audit B7: proxy_url backs a String(500) column."""
+    oversized_proxy = "http://user:pass@" + ("a" * 490) + ".example.com:8080"
+    assert len(oversized_proxy) > 500
+    resp = await client.post(
+        "/api/v1/accounts",
+        json={
+            "username": "oversized_proxy_acc_x1",
+            "session_json": '{"device_id": "test"}',
+            "proxy_url": oversized_proxy,
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_add_account_oversized_locale_rejected(client):
+    """audit B7: locale backs a String(10) column."""
+    resp = await client.post(
+        "/api/v1/accounts",
+        json={
+            "username": "oversized_locale_acc_x1",
+            "session_json": '{"device_id": "test"}',
+            "proxy_url": "http://user:pass@proxy.example.com:8080",
+            "locale": "x" * 11,
+        },
+    )
+    assert resp.status_code == 422
