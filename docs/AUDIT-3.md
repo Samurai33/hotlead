@@ -13,24 +13,19 @@ verified fixed, migrated, and covered by a targeted test.** Nothing found in thi
 pass blocks going live. This pass's own new findings (H1, H2, M1-M3, L1 below) were
 also fixed directly — code changes, new/updated tests, full local verification
 (build, lint, mypy, `next build`, and the complete backend suite against real
-Postgres/Redis in a throwaway Docker pair — 167/167 passing). What remains is (a)
-one network fact that needs the operator's direct confirmation, (b) one small
-consistency gap (M4) left open by choice, and (c) the already-known Fase 4/5
-operational checklist in [PRODUCTION_ROADMAP.md](PRODUCTION_ROADMAP.md), none of
-which has a hidden code dependency. **Nothing in this document has been committed
-or pushed** — see the note at the end.
+Postgres/Redis in a throwaway Docker pair — 167/167 passing) — **committed (6
+commits) and pushed to `main`, CI green, deploy webhook fired, `/health` confirmed
+200 in production.** The one network fact needing the operator's direct
+confirmation (N1) has since been checked and closed — see below. What remains is
+(a) one small consistency gap (M4) left open by choice, and (b) the already-known
+Fase 4/5 operational checklist in [PRODUCTION_ROADMAP.md](PRODUCTION_ROADMAP.md),
+none of which has a hidden code dependency.
 
-## 🔴 Needs operator confirmation before sign-off
+## ✅ Network confirmation closed (N1)
 
-| # | Finding | Where | Impact |
-|---|---------|-------|--------|
-| N1 | **Unconfirmed: is the Coolify dashboard's management port reachable directly on the homelab's public IP, outside the Cloudflare Tunnel?** The documented architecture (`docs/deployment.md`, `CLAUDE.md`) is "zero forwarded router ports — everything through the tunnel," and the tunnel's own ingress config restricts the admin hostname to only the `^/api/v1/deploy` webhook path (404 on everything else). Operator memory (own notes, not repo state) separately records reaching the Coolify dashboard at a bare public-IP:port. Repo/code review can't settle which is true — it's a router-level fact. | Router/firewall config (outside the repo) | If that port is in fact forwarded, it's a second, undocumented public ingress path straight into Coolify's own admin UI, bypassing the entire tunnel-only architecture this audit otherwise verified as sound. |
-
-**Action:** confirm directly against the router/firewall whether any Coolify
-management port is forwarded to the public IP. If yes, close it — the dashboard
-should only be reachable through the tunnel's path-restricted route or a VPN
-(Tailscale), never a bare public IP:port. This is the one item in the whole audit
-that determines whether the network story is fully "go."
+| # | Finding | Resolution |
+|---|---------|------------|
+| N1 | Whether the Coolify dashboard's management port was reachable directly on the homelab's public IP, outside the Cloudflare Tunnel — a router-level fact code review couldn't settle. | **Operator checked the ISP router's port-forwarding table directly and confirmed: no individual port-forward rules exist.** The table's only entry is a DMZ rule to one internal host, confirmed by the operator to be the MikroTik firewall — not the Coolify VM. This matches the documented architecture exactly: the ISP box (a "Vivo Box") hands all unsolicited inbound traffic to the MikroTik, which is the layer that actually does per-port control, consistent with "zero forwarded app/admin ports" (`docs/deployment.md`, `CLAUDE.md`). Any stale/unrelated forwarding rules that previously existed on the ISP box were removed during this check. No further action needed. |
 
 ## ✅ Fixed in this pass
 
@@ -64,13 +59,16 @@ that determines whether the network story is fully "go."
 
 ## Remaining work
 
-None of these have a hidden code dependency; every code-side prerequisite is
-verified done above.
+Both N1 and this pass's own code fixes are closed. What's left is purely the
+already-known Fase 4/5 operational checklist in
+[PRODUCTION_ROADMAP.md](PRODUCTION_ROADMAP.md) — none of it has a hidden code
+dependency:
 
-1. **Confirm the router/firewall question (N1)** — the one item that could still be a real network gap. Only the operator can settle this.
-2. **Review and commit this pass's changes** — see the note below; nothing has been pushed yet, so production is still running the pre-audit build.
-3. M4 (account-delete `useActionState` consistency) as capacity allows — not urgent in isolation.
-4. The rest is the already-known Fase 4/5 operational checklist in [PRODUCTION_ROADMAP.md](PRODUCTION_ROADMAP.md): install the backup cron on the VM and run one real restore test, onboard 2+ dedicated Instagram accounts each with its own residential proxy (no sharing — L3), run the Fase 5 end-to-end smoke test, and review `docker stats` after 24h of real traffic.
+1. Install the backup cron on the VM and run one real restore test.
+2. Onboard 2+ dedicated Instagram accounts, each with its own residential proxy (no sharing — L3).
+3. Run the Fase 5 end-to-end smoke test (create job → pause/resume → export → forced rotation → cascade delete).
+4. Review `docker stats` after 24h of real traffic and tune resource limits if needed.
+5. M4 (account-delete `useActionState` consistency) as capacity allows — not urgent in isolation.
 
 ## Note on this document and what changed
 
@@ -88,6 +86,6 @@ verified. Touched: `frontend/proxy.ts`, `frontend/next.config.mjs`,
 `frontend/app/layout.tsx`, `frontend/app/jobs/[id]/prospects/page.tsx`,
 `backend/app/schemas/{job,prospect,account}.py`, `backend/app/workers/tasks.py`,
 `backend/tests/test_job_schema.py`, `backend/tests/test_task_resilience.py`,
-`docker-compose.yml` (comment only). **Nothing has been committed or pushed** —
-these are working-tree changes pending review; production is still running the
-build from before this audit until they're committed and merged to `main`.
+`docker-compose.yml` (comment only), across 6 logical commits. **Pushed to `main`
+and deployed** — CI green, Coolify deploy webhook fired, `/health` confirmed 200
+in production the same session.

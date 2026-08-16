@@ -6,7 +6,7 @@
 - **Fases 0–3 concluídas** — deploy + auto-deploy CI-gated funcionando via Cloudflare Tunnel (mudança vs. o plano original de VLAN/port-forward + Tailscale). Todos os itens de código de [AUDIT.md](AUDIT.md) e [AUDIT-2.md](AUDIT-2.md) foram verificados como corrigidos na auditoria final — ver [AUDIT-3.md](AUDIT-3.md).
 - **Fase 4 quase concluída** — `scripts/backup.sh` e o monitor de uptime (`uptime.yml`, roda a cada 15min com alerta por e-mail do GitHub Actions) prontos e funcionando. Falta apenas trabalho manual na VM: instalar o cron do backup, testar o restore, adicionar 2+ contas dedicadas com proxy residencial cada, e revisar `docker stats` após 24h.
 - **Fase 5 pendente** — smoke test E2E (precisa de conta IG dedicada + proxy; pré-requisitos de código todos prontos — ver AUDIT-3.md).
-- Bugs de código das auditorias de 2026-07/2026-08 (AUDIT.md, AUDIT-2.md) estão **todos verificados como corrigidos**. Achados novos da auditoria final foram corrigidos diretamente (nonce de CSP, backoff exponencial no Celery, validação de charset no export, estado de erro na página de prospects) — ver [AUDIT-3.md](AUDIT-3.md). ⚠️ Essas correções ainda **não foram commitadas nem enviadas para `main`** — produção segue rodando o build anterior a esta auditoria até isso acontecer.
+- Bugs de código das auditorias de 2026-07/2026-08 (AUDIT.md, AUDIT-2.md) estão **todos verificados como corrigidos**. Achados novos da auditoria final foram corrigidos diretamente (nonce de CSP, backoff exponencial no Celery, validação de charset no export, estado de erro na página de prospects) e **já estão em produção** — ver [AUDIT-3.md](AUDIT-3.md). A confirmação de rede pendente (porta de gestão do Coolify) também foi validada pelo operador e fechada.
 
 ---
 
@@ -32,7 +32,7 @@
 - [x] Instalar Tailscale com override systemd `After=network-online.target` (lição aprendida do Frigate — evita race de DNS no boot) — procedimento documentado em `runbook.md`
 - [x] Firewall/roteador: nenhuma porta de app forwardada (Cloudflare Tunnel); Postgres/Redis nunca expostos — confirmado em `docker-compose.yml`
 
-**Aceite:** VM acessível via Tailscale, Coolify enxerga o servidor, `docker info` OK. ⚠️ **Pendente de confirmação do operador:** validar que a porta de gestão do Coolify (dashboard) não está forwardada diretamente no roteador para o IP público — só deve ser alcançável pelo túnel (rota `^/api/v1/deploy` apenas) ou por VPN. Ver AUDIT-3.md §Rede.
+**Aceite:** VM acessível via Tailscale, Coolify enxerga o servidor, `docker info` OK. ✅ **Confirmado pelo operador:** tabela de redirecionamento de portas do roteador (ISP) revisada, nenhuma regra individual de porta — só uma entrada DMZ apontando para o firewall MikroTik interno (não para a VM do Coolify), que é quem de fato controla o acesso porta a porta. Nenhuma porta de app ou de gestão do Coolify exposta direto no IP público. Ver AUDIT-3.md.
 
 ## Fase 2 — Configuração e secrets (agente: `devops`) ✅ concluída
 
