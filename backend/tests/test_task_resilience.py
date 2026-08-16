@@ -18,6 +18,20 @@ def test_jittered_produces_varying_countdowns():
     assert len(countdowns) > 1
 
 
+def test_jittered_backs_off_exponentially_per_retry():
+    """audit AUDIT-3.md H2: jitter alone doesn't stop every attempt of a
+    given retry drawing from the same fixed window -- each successive
+    `retries` count must at least double the base window (2**retries),
+    matching Celery's own retry_backoff growth curve."""
+    base = 120
+    for retries in range(4):
+        for _ in range(50):
+            countdown = _jittered(base, retries)
+            lower = base * (2**retries)
+            upper = lower * 1.25
+            assert lower <= countdown <= upper
+
+
 def test_celery_task_time_limits_configured():
     """audit M7: with worker_prefetch_multiplier=1, a task that never raises
     parks that worker's only slot forever with no operator signal."""

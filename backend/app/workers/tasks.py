@@ -22,14 +22,22 @@ from app.scraper.client import (
 logger = structlog.get_logger(__name__)
 
 
-def _jittered(base_seconds: int) -> float:
-    """Up to +25% random jitter on a retry countdown (audit AUDIT-2.md M6).
+def _jittered(base_seconds: int, retries: int = 0) -> float:
+    """Exponential backoff (2**retries) plus up to +25% random jitter on a
+    retry countdown (audit AUDIT-2.md M6, AUDIT-3.md H2).
 
-    Without this, a pool-wide rate-limit event retries every in-flight job
-    in lockstep at the exact same instant, hammering the same cooling-down
-    accounts together the moment they reactivate.
+    The jitter alone (originally the whole fix) stops a pool-wide
+    rate-limit event from retrying every in-flight job in lockstep at the
+    exact same instant, hammering the same cooling-down accounts together
+    the moment they reactivate -- but every attempt drew from the same
+    fixed window regardless of how many times a task had already retried.
+    `retries` is `self.request.retries` (0 on the first attempt), so a
+    second attempt waits ~2x as long as the first, a third ~4x, etc. --
+    matching Celery's own `retry_backoff` semantics without the growth
+    curve being coupled to a config flag two different tasks might set
+    differently.
     """
-    return base_seconds * (1 + random.uniform(0, 0.25))
+    return base_seconds * (2**retries) * (1 + random.uniform(0, 0.25))
 
 
 def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
@@ -176,7 +184,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
 
         except RateLimitExceeded as exc:
             mark_account_cooldown_sync(db, redis, account)
-            countdown = _jittered(120)
+            countdown = _jittered(120, self.request.retries)
             logger.warning(
                 "job.rate_limited",
                 job_id=job_id,
@@ -187,7 +195,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
 
         except AccountChallenged as exc:
             mark_account_challenged_sync(db, redis, account)
-            countdown = _jittered(300)
+            countdown = _jittered(300, self.request.retries)
             logger.warning(
                 "job.challenged",
                 job_id=job_id,
@@ -198,7 +206,7 @@ def _run_scrape(self, job_id: str, target: str, iterator_name: str) -> dict:
 
         except AccountFlagged as exc:
             mark_account_challenged_sync(db, redis, account)
-            countdown = _jittered(300)
+            countdown = _jittered(300, self.request.retries)
             logger.warning(
                 "job.flagged",
                 job_id=job_id,
