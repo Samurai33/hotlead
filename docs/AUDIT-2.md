@@ -1,5 +1,9 @@
 # HotLead — Audit Findings Round 2 (2026-08)
 
+> **Status: all C/H/M/L items below verified fixed and deployed** as of the final
+> production-readiness audit — see [AUDIT-3.md](AUDIT-3.md) for verification
+> evidence (file:line) and what's left (all operational, no open code items).
+
 Follow-up to [docs/AUDIT.md](AUDIT.md) (H1-H4/M1-M7/L1-L8, all fixed and deployed).
 That pass was a read-only code review; this one adds external research — official
 docs for FastAPI/SQLAlchemy/Celery/Next.js/instagrapi, OWASP guidance, and a

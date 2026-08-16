@@ -2,11 +2,11 @@
 
 > Arquivo de execução para os agentes (`.claude/agents/`). Cada fase lista o agente responsável, as tarefas e o critério de aceite. Marcar `[x]` ao concluir. Executar as fases em ordem.
 
-**Status geral (2026-07): produção NO AR** — https://hotlead.n3xus.dev · https://api-hotlead.n3xus.dev.
-- **Fases 0–3 concluídas** — deploy + auto-deploy CI-gated funcionando via Cloudflare Tunnel (mudança vs. o plano original de VLAN/port-forward + Tailscale).
-- **Fase 4 em andamento** — `scripts/backup.sh` e o monitor de uptime (`uptime.yml`) prontos; falta instalar o cron na VM, testar o restore e adicionar contas ao pool.
-- **Fase 5 pendente** — smoke test E2E (precisa de conta IG dedicada + proxy).
-- Bugs de código encontrados na auditoria de 2026-07 estão triados em [AUDIT.md](AUDIT.md) (o mais grave: cooldown de conta nunca reativa → esvazia o pool).
+**Status geral (2026-08, auditoria final): produção NO AR** — https://hotlead.n3xus.dev · https://api-hotlead.n3xus.dev.
+- **Fases 0–3 concluídas** — deploy + auto-deploy CI-gated funcionando via Cloudflare Tunnel (mudança vs. o plano original de VLAN/port-forward + Tailscale). Todos os itens de código de [AUDIT.md](AUDIT.md) e [AUDIT-2.md](AUDIT-2.md) foram verificados como corrigidos na auditoria final — ver [AUDIT-3.md](AUDIT-3.md).
+- **Fase 4 quase concluída** — `scripts/backup.sh` e o monitor de uptime (`uptime.yml`, roda a cada 15min com alerta por e-mail do GitHub Actions) prontos e funcionando. Falta apenas trabalho manual na VM: instalar o cron do backup, testar o restore, adicionar 2+ contas dedicadas com proxy residencial cada, e revisar `docker stats` após 24h.
+- **Fase 5 pendente** — smoke test E2E (precisa de conta IG dedicada + proxy; pré-requisitos de código todos prontos — ver AUDIT-3.md).
+- Bugs de código das auditorias de 2026-07/2026-08 (AUDIT.md, AUDIT-2.md) estão **todos verificados como corrigidos**. Achados novos da auditoria final foram corrigidos diretamente (nonce de CSP, backoff exponencial no Celery, validação de charset no export, estado de erro na página de prospects) — ver [AUDIT-3.md](AUDIT-3.md). ⚠️ Essas correções ainda **não foram commitadas nem enviadas para `main`** — produção segue rodando o build anterior a esta auditoria até isso acontecer.
 
 ---
 
@@ -25,54 +25,50 @@
 ---
 
 ## Fase 1 — Preparação do ambiente (agente: `devops`) ✅ concluída
-> Feito com Cloudflare Tunnel em vez de port-forward: a linha do firewall MikroTik (3000/8000) ficou obsoleta — nenhuma porta é forwardada.
+> Feito com Cloudflare Tunnel em vez de port-forward: a linha do firewall MikroTik (3000/8000) ficou obsoleta — nenhuma porta é forwardada. Tailscale é usado só para acesso administrativo/SSH à VM, não para tráfego da aplicação (ver SECURITY.md).
 
-- [ ] Criar VM no Proxmox (padrão do homelab: template 9000 Ubuntu 22.04 cloud-init, VLAN dedicada seguindo convenção "VLAN ID = 3º octeto", /30)
-      *Sugestão: VLAN 160 → IP 192.168.160.2, 4 vCPU, 8GB RAM, 60GB disco no `nvme-store`*
-- [ ] Instalar Docker + adicionar a VM ao Coolify como servidor
-- [ ] Instalar Tailscale com override systemd `After=network-online.target` (lição aprendida do Frigate — evita race de DNS no boot)
-- [ ] Firewall MikroTik: liberar apenas 3000/8000 (ou só o proxy do Coolify); Postgres/Redis nunca expostos
+- [x] Criar VM no Proxmox e adicioná-la ao Coolify como servidor — prod está no ar, logo isso está feito
+- [x] Instalar Docker + adicionar a VM ao Coolify como servidor
+- [x] Instalar Tailscale com override systemd `After=network-online.target` (lição aprendida do Frigate — evita race de DNS no boot) — procedimento documentado em `runbook.md`
+- [x] Firewall/roteador: nenhuma porta de app forwardada (Cloudflare Tunnel); Postgres/Redis nunca expostos — confirmado em `docker-compose.yml`
 
-**Aceite:** VM acessível via Tailscale, Coolify enxerga o servidor, `docker info` OK.
+**Aceite:** VM acessível via Tailscale, Coolify enxerga o servidor, `docker info` OK. ⚠️ **Pendente de confirmação do operador:** validar que a porta de gestão do Coolify (dashboard) não está forwardada diretamente no roteador para o IP público — só deve ser alcançável pelo túnel (rota `^/api/v1/deploy` apenas) ou por VPN. Ver AUDIT-3.md §Rede.
 
 ## Fase 2 — Configuração e secrets (agente: `devops`) ✅ concluída
 
-- [ ] Gerar secrets: `openssl rand -hex 32` para `SECRET_KEY` e `API_KEY`
-- [ ] Gerar `POSTGRES_PASSWORD` forte (sem `#` ou caracteres especiais problemáticos — lição do RTSP/Frigate)
-- [ ] Cadastrar todas as vars do `.env.example` como secrets no Coolify (nunca em arquivo no repo)
-- [ ] `CORS_ORIGINS` = domínio real do frontend; `ENVIRONMENT=production`; `NEXT_PUBLIC_API_URL` = URL pública da API
-- [ ] Conferir que `/docs` (Swagger) fica desabilitado com `ENVIRONMENT=production`
+- [x] Gerar secrets: `openssl rand -hex 32` para `SECRET_KEY`/`API_KEY`/`SESSION_ENCRYPTION_KEY` (Fernet) — validados por entropia mínima no startup (`core/config.py`)
+- [x] Gerar `POSTGRES_PASSWORD`/`REDIS_PASSWORD` fortes
+- [x] Cadastrar todas as vars do `.env.example` como secrets no Coolify (nunca em arquivo no repo) — `.env.example` ↔ `config.py` confirmados em sincronia
+- [x] `CORS_ORIGINS` = domínio real do frontend; `ENVIRONMENT=production`; `NEXT_PUBLIC_API_URL` = URL pública da API
+- [x] Conferir que `/docs` (Swagger) fica desabilitado com `ENVIRONMENT=production`
 
 **Aceite:** `docker compose config` resolve sem `CHANGE_ME` em nenhuma var.
 
 ## Fase 3 — Deploy (agente: `devops`) ✅ concluída
-> Coolify usa **só** `docker-compose.yml` (não os dois arquivos). Deploy webhook + `deploy.yml` funcionando.
+> Coolify usa **só** `docker-compose.yml` — os overlays `override`/`prod` **não** são aplicados por ele (o padrão `-f docker-compose.yml -f docker-compose.prod.yml` é só para deploy manual na VM, ver `runbook.md`). Deploy webhook + `deploy.yml` funcionando, gated por CI.
 
-- [ ] Criar resource no Coolify apontando para `Samurai33/hotlead@main` com os dois compose files (`-f docker-compose.yml -f docker-compose.prod.yml`)
-- [ ] Primeiro deploy: subir stack completa (postgres, redis, api, worker, beat, frontend)
-- [ ] Rodar migration: `docker compose exec api alembic upgrade head`
-- [ ] Configurar webhook de deploy do Coolify + secret `COOLIFY_WEBHOOK_URL` no GitHub → workflow `.github/workflows/deploy.yml` (push na `main` = deploy automático)
-- [ ] HTTPS via proxy do Coolify (Traefik/Caddy) com certificado válido
+- [x] Criar resource no Coolify apontando para `Samurai33/hotlead@main`, build pack Docker Compose, arquivo `docker-compose.yml`
+- [x] Primeiro deploy: stack completa (postgres, redis, api, worker, beat, frontend) no ar
+- [x] Migration aplicada: `docker compose exec api alembic upgrade head`
+- [x] Webhook de deploy do Coolify + secrets `COOLIFY_WEBHOOK_URL`/`COOLIFY_TOKEN` no GitHub → `deploy.yml` dispara após CI verde em `main`, com `concurrency` group evitando deploys empilhados
+- [x] HTTPS via Cloudflare edge + Traefik do Coolify
 
-**Aceite:** `GET /health` retorna 200 via HTTPS; frontend carrega e autentica com a API key.
+**Aceite:** `GET /health` retorna 200 via HTTPS; frontend carrega e autentica com a API key. ✅ Confirmado.
 
-## Fase 4 — Operação: contas, backup e observabilidade (agentes: `devops` + `scraper-specialist`) 🔄 em andamento
-> `scripts/backup.sh` e `uptime.yml` prontos; swap na VM feito; procedimento de restore
-> documentado no `runbook.md` (inclui a variante "VM do Coolify", sem projeto compose no
-> host — issue #138). Falta, ambos exigindo acesso prático à VM: instalar o cron do
-> backup e executar o teste de restore. Contas no pool também pendentes.
+## Fase 4 — Operação: contas, backup e observabilidade (agentes: `devops` + `scraper-specialist`) 🔄 quase concluída
+> `scripts/backup.sh` e `uptime.yml` prontos (uptime já cumpre o critério de aceite — probe a cada 15min em `/health` e no frontend, com alerta via falha de workflow do GitHub). Procedimento de restore documentado no `runbook.md` (inclui a variante "VM do Coolify", sem projeto compose no host — issue #138). Restam apenas tarefas manuais na VM.
 
-- [ ] Adicionar 2+ contas Instagram ao pool via `/add-account` (contas dedicadas, nunca a pessoal)
-- [ ] Configurar 1 proxy residencial por conta (`proxy_url`)
+- [ ] Adicionar 2+ contas Instagram ao pool via `/add-account` (contas dedicadas, nunca a pessoal) — **pré-requisito de código pronto**: `proxy_url` agora é obrigatório (`add_account.py` recusa sem `--proxy`), sessão criptografada em repouso (Fernet)
+- [ ] Configurar 1 proxy residencial **dedicado** por conta — nenhum duplicado entre contas (sem checagem automática de unicidade hoje; disciplina operacional)
 - [ ] Agendar `scripts/backup.sh` via cron na VM (diário 03:00 America/Sao_Paulo, retenção 14 dias) — comando documentado no `runbook.md`, falta executar na VM
-- [ ] Testar restore do backup em banco temporário (procedimento — incluindo a variante Coolify VM — já documentado no `runbook.md`; falta rodar o teste de fato: backup não testado = backup inexistente)
-- [ ] Uptime Kuma (ou monitor do Coolify) apontando para `/health` com alerta
-- [ ] Revisar `docker stats` após 24h e ajustar limites do `docker-compose.prod.yml` se necessário
+- [ ] Testar restore do backup em banco temporário — falta rodar o teste de fato: backup não testado = backup inexistente
+- [x] Monitor de uptime com alerta — `uptime.yml` cumpre o critério (GitHub Actions cron 15min + alerta por falha de workflow)
+- [ ] Revisar `docker stats` após 24h de tráfego real e ajustar limites do `docker-compose.yml` se necessário
 
-**Aceite:** backup restaurável comprovado + alerta de downtime funcionando + contas `active` no pool.
+**Aceite:** backup restaurável comprovado + alerta de downtime funcionando (✅ já) + contas `active` no pool.
 
 ## Fase 5 — Smoke test de produção (agentes: `scraper-specialist` + `frontend-dev`) ⏳ pendente
-> Bloqueado por: conta IG dedicada (@scraping.n3xus) + proxy. Ver AUDIT.md antes — o bug do cooldown pode brickar o pool durante o teste.
+> Bloqueado só por: conta IG dedicada (@scraping.n3xus) + proxy — trabalho operacional, não código. O bug de cooldown que travava o pool (AUDIT.md H1) está corrigido e testado; reativação automática, contador de rate limit por requisição real, escalonamento para `banned` e todos os demais pré-requisitos de código (AUDIT-2.md) foram verificados na auditoria final (AUDIT-3.md).
 
 - [ ] Criar job real com perfil público pequeno (< 500 seguidores)
 - [ ] Validar: progresso atualiza no dashboard, delays de 1–3s aplicados (conferir logs do worker), contadores de email/phone corretos

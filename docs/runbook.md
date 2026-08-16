@@ -70,13 +70,13 @@ Instagram está desafiando a conta. Abrir o app IG, aprovar o login, aguardar o 
 Abrir o Instagram no celular → aprovar tentativa de login → rodar `scripts/add_account.py` de novo.
 
 ### API 401 em tudo
-`API_KEY` do frontend (localStorage, via tela de login) diverge da env da API. Refazer login na UI com a key correta.
+`API_KEY` que o operador digitou na tela de login diverge da env `API_KEY` da API. A key fica num cookie `httpOnly` (não em `localStorage` — migração concluída, ver CLAUDE.md), então refazer login na UI com a key correta.
 
 ### Postgres não sobe após reboot
 Ver `docker compose logs postgres`. Corrupção rara: restaurar do backup mais recente.
 
 ### Tailscale sem DNS após boot da VM
-Sintoma conhecido do homelab (snap + race de rede). Fix permanente:
+Tailscale aqui é só para acesso administrativo/SSH à VM — não faz parte do caminho de tráfego da aplicação (esse é 100% Cloudflare Tunnel → Traefik, ver `docs/deployment.md`). Sintoma conhecido do homelab (snap + race de rede). Fix permanente:
 
 ```bash
 sudo systemctl edit tailscaled
