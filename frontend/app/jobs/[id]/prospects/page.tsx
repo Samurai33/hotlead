@@ -5,6 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { prospectsApi, jobsApi, exportHref, type Prospect } from "@/lib/api";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { ArrowLeft, Download, Mail, Phone, Globe, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE = 100;
@@ -16,7 +17,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
   const [page, setPage] = useState(0);
 
   const { data: job }       = useSWR(`job-${jobId}`, () => jobsApi.get(jobId));
-  const { data: prospects, isLoading } = useSWR(
+  const { data: prospects, error, isLoading, mutate } = useSWR(
     `prospects-${jobId}-${hasEmail}-${hasPhone}-${page}`,
     () => prospectsApi.list(jobId, {
       has_email: hasEmail ?? undefined,
@@ -26,6 +27,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
     }),
     { keepPreviousData: true },
   );
+  const isError = !!error;
 
   const exportFilters = { has_email: hasEmail ?? undefined, has_phone: hasPhone ?? undefined };
 
@@ -63,6 +65,17 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
       </header>
 
       <main className="px-6 py-4 max-w-7xl mx-auto">
+        {/* Audit AUDIT-3.md M3: this was the one page where a fetch failure
+            was indistinguishable from "no prospects yet" — error wasn't
+            destructured from useSWR, so a backend outage silently rendered
+            the empty-state row. Mirrors the pattern used on the dashboard,
+            accounts, and job-detail pages. */}
+        {isError && (
+          <div className="mb-4">
+            <ErrorState message="Não foi possível carregar os prospects." onRetry={() => mutate()} />
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex items-center gap-3 mb-4">
           <Filter size={13} className="text-text-muted" />
@@ -100,7 +113,7 @@ export default function ProspectsPage({ params }: { params: Promise<{ id: string
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-text-muted text-xs">Carregando...</td></tr>
-              ) : !prospects?.length ? (
+              ) : isError ? null : !prospects?.length ? (
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-text-muted text-xs">Nenhum prospect encontrado.</td></tr>
               ) : (
                 prospects.map((p: Prospect) => (
