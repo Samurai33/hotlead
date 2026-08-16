@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fira_Code, Fira_Sans } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const firaCode = Fira_Code({
@@ -22,11 +23,22 @@ export const metadata: Metadata = {
   robots: "noindex, nofollow",  // private tool — no indexing
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Reading headers() opts every route into dynamic rendering (see
+  // proxy.ts) -- required for the CSP nonce it sets to actually land on
+  // Next's own generated inline <script> tags. A statically prerendered
+  // page's HTML is fixed at build time, before any per-request nonce
+  // exists, so its inline scripts would never carry one; this call is what
+  // makes /login and /jobs/new (previously static) render fresh per
+  // request instead. The nonce value itself isn't used here today -- no
+  // custom <script>/next/script tags exist yet -- but any that get added
+  // later must read it via headers().get("x-nonce") and pass it explicitly.
+  await headers();
+
   return (
     <html lang="pt-BR" className="dark">
       <body
