@@ -51,6 +51,19 @@ def test_profile_username_at_max_length_accepted():
     assert len(payload.profile_username) == 100
 
 
+def test_profile_username_rejects_non_instagram_charset():
+    """audit AUDIT-3.md M1: profile_username flows unescaped into the
+    export route's Content-Disposition filename -- reject anything outside
+    Instagram's own charset instead of only relying on downstream escaping."""
+    with pytest.raises(ValidationError):
+        JobCreate(profile_username='cozinha"; evil')
+
+
+def test_profile_username_accepts_dots_and_underscores():
+    payload = JobCreate(profile_username="cozinha.4e20_oficial")
+    assert payload.profile_username == "cozinha.4e20_oficial"
+
+
 def test_target_post_url_over_max_length_rejected():
     """audit B7: target_post_url backs a String(500) column."""
     oversized = "https://www.instagram.com/p/" + ("A" * 480) + "/"

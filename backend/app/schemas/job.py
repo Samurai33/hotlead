@@ -1,10 +1,21 @@
+import re
 import uuid
 from datetime import datetime
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.job import JobMode, JobStatus
+
+# Instagram's own username charset (letters, digits, '.', '_'). Enforcing
+# this isn't just cosmetic: profile_username flows unescaped into the
+# export route's Content-Disposition filename (audit AUDIT-3.md M1) — an
+# allowlist here is cheaper and more robust than trying to escape it at the
+# one call site that happens to be dangerous today. Length is governed by
+# the existing Field(max_length=100) below (matching the String(100)
+# column, not Instagram's real 30-char cap -- see test_job_schema.py), so
+# this only restricts charset.
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9._]+$")
 
 
 class JobCreate(BaseModel):
@@ -20,7 +31,13 @@ class JobCreate(BaseModel):
     @field_validator("profile_username")
     @classmethod
     def strip_at_and_whitespace(cls, v: str) -> str:
-        return v.lstrip("@").strip()
+        v = v.lstrip("@").strip()
+        if not _USERNAME_RE.match(v):
+            raise ValueError(
+                "profile_username must match Instagram's username format "
+                "(letters, digits, '.', '_', max 30 chars)"
+            )
+        return v
 
     @field_validator("target_post_url")
     @classmethod
@@ -51,7 +68,7 @@ class JobCreate(BaseModel):
 
 
 class JobRead(BaseModel):
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     profile_username: str
@@ -69,7 +86,7 @@ class JobRead(BaseModel):
 
 
 class JobListRead(BaseModel):
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     profile_username: str
