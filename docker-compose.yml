@@ -33,7 +33,12 @@ services:
     # arbitrary one and may route to an IP it can't reach (intermittent 000s).
     labels:
       - traefik.docker.network=coolify
-    # Security: read-only root filesystem
+    # Not read-only (audit AUDIT-3.md M2: this comment used to claim
+    # otherwise while read_only stayed false since the file's introduction).
+    # Nothing outside /tmp (already tmpfs-mounted above) writes today, so
+    # flipping this to true looks safe, but do it deliberately with
+    # PYTHONDONTWRITEBYTECODE=1 set first -- Python's .pyc cache writes to
+    # /app otherwise, which would break on a real read-only root.
     read_only: false
     tmpfs:
       - /tmp
