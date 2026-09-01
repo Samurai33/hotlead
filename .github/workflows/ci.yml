@@ -132,7 +132,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image (runner stage)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -140,7 +140,7 @@ jobs:
           push: false
 
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
