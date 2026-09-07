@@ -1,13 +1,13 @@
 # ---- Web Framework -----------------------------------------------------------
 fastapi==0.141.1
-uvicorn[standard]==0.52.1
+uvicorn[standard]==0.52.4
 python-multipart==0.0.32
 
 # ---- Database ----------------------------------------------------------------
-sqlalchemy[asyncio]==2.0.51
+sqlalchemy[asyncio]==2.0.52
 asyncpg==0.31.0
 psycopg2-binary==2.9.12
-alembic==1.19.0
+alembic==1.19.1
 
 # ---- Cache / Queue -----------------------------------------------------------
 # redis capped at <6.5 by celery 5.6/kombu, so redis 8.x is not installable
@@ -16,16 +16,16 @@ redis==6.4.0
 celery[redis]==5.6.3
 
 # ---- Config & Validation -----------------------------------------------------
-pydantic==2.13.4
+pydantic==2.13.5
 pydantic-settings==2.15.0
 
 # ---- Crypto --------------------------------------------------------------------
 # Fernet, for encrypting Account.session_json at rest (audit C2) — distinct from
 # instagrapi's own pycryptodomex dependency, which doesn't expose Fernet.
-cryptography==50.0.0
+cryptography==50.0.1
 
 # ---- Instagram Scraping ------------------------------------------------------
-instagrapi==2.18.12
+instagrapi==2.18.18
 Pillow==12.3.0
 
 # ---- Utilities ---------------------------------------------------------------
@@ -34,9 +34,9 @@ tenacity==9.1.4
 structlog==26.1.0
 
 # ---- Dev / Test --------------------------------------------------------------
-fakeredis==2.37.0
+fakeredis==2.37.1
 pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==5.0.0
-ruff==0.16.1
-mypy==2.3.0
+ruff==0.16.6
+mypy==2.3.1
